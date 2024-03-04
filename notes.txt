@@ -1,0 +1,6 @@
+Maximum possible distance to consider between two cells:
+25 microns
+
+Build model in plplpl/model/
+Make functions in plplpl/conjugation-functions/
+Write data processing functions in plplpl/data-processing
