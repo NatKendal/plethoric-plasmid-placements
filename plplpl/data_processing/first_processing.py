@@ -213,3 +213,5 @@ for cell in raw.keys():
 # the problem is with how im assigning parents -- cells are sometimes not tracked so the parent may not always exist???
 # and also with the lineages - they dont update as they split.... have to decide based on parent after all....
 
+if __name__ == "__main__":
+    pass #do something
