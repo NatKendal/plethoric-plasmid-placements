@@ -7,7 +7,7 @@ import csv
 # input: gfp and rfp values for one cell
 # output: 0 for donor cell, 1 for recipient cell
 # only run this if being a transconjugant is already ruled out
-def donorOrRecip(gfp, rfp):
+def redOrGreen(rfp,gfp):
 
     # fluorescence thresholds for red/green
     recipThreshold=2280/16383
@@ -34,6 +34,7 @@ def donorOrRecip(gfp, rfp):
     
 # input: all data
 # output: dict of all transconjugants, list of first transconjugants
+# -1 for not conjugant, 2 for conjugant (not reusing 0/1 to avoid errors)
 def getConj(raw):
 
     # stores all seen transconjugant cell id
@@ -46,30 +47,30 @@ def getConj(raw):
     dictConj = dict()
 
     # check each row to see if it is flagged
-    # we sort it to make sure it is in increasing order
+    # we sort it to make sure iwe go forward in time
     for cell in raw.keys().sort():
 
         # checks
-        status = 0
+        status = -1
 
         # check if its cell Id is already there
         # in this case it is not a first, nor does it need to be added
         if raw[cell]['cellId'] in known:
-            status = 1
+            status = 2
 
         # check if parent cell Id is there
         # in this case it divided but was not a first
         # does need to be added
         elif raw[cell]['parentCellId'] in known:
             known.add(raw[cell]['cellId'])
-            status = 1
+            status = 2
 
         # check if flagged, and not yet known
         # this would be a first, add uid to that list
         elif raw[cell]['flag'] == 1:
             known.add(raw[cell]['cellId'])
             firsts.append(cell)
-            status = 1
+            status = 2
 
 
         # add the dictionary entry
@@ -160,9 +161,21 @@ def readFile(file):
 ### Actual Processing Steps 
 # ------------------------------------------------------------------
 
-# input: raw data dictionary
-# output: 
-def dictColours(cells):
-    return 0
+# input: raw data, dictionary of transconjugants
+# output: dictionary mapping each uid to cell colour
+def dictColours(raw, dictConj):
 
+    colours = dict()
+
+    for cell in raw.keys():
+
+        # check if it is a transconjugant first
+        if dictConj[cell] == 2:
+            colours[cell] = 2
+
+        # otherwise check if red or green
+        else:
+            colours[cell] = redOrGreen(raw[cell]['rfp'], raw[cell]['gfp'])
+
+    return colours
 
