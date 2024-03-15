@@ -1,6 +1,76 @@
 import csv
 
 # ------------------------------------------------------------------
+### Getting the data organized
+# ------------------------------------------------------------------
+
+# input: file name
+# output: dictionary storing all cells and info, dictionary of time step + uid/cell id
+# makes python dictionaries to store the data from the csv while processing
+def readFile(file):
+
+    # we will want a dictionary storing all the cells 
+    # each will be its own dictionary of values
+    raw = dict()
+
+    # and a dictionary containing cells in each time step
+    # each a dict with unique id: cell id
+    cellsByStep = dict()
+
+    # going to manually set the number of steps for now - can probably get this info?
+    # create a new list for each time step
+    numSteps = 225
+    for i in range(1,numSteps+1):
+        cellsByStep[i] = []
+
+    # keep track of the row -- starts at 2 because header
+    # rows will be the new cell id values
+    currentRow = 2
+
+    # read in the csv file and store the information in the dictionaries 
+    with open('data.csv', 'r') as file:
+        
+        reader = csv.reader(file)
+
+        # since there is a header, we skip line one
+        next(reader)
+
+        for row in reader:
+
+            # first add relevant info to the cellsByStep
+            step = int(row[0])
+            cellId = int(row[2])
+            cellsByStep[step].append({currentRow: cellId})
+
+            # then, add everything to the main dictionary
+            raw[currentRow] = {'step': step, 
+                            #'objectNum': row[1],
+                            'cellId': row[2],
+                            'lineage': row[3],
+                            #'divideFlag': row[4],
+                            #'cellAge': row[5],
+                            #'growthRate': row[6],
+                            #'lifetime': row[7],
+                            #'startLength': row[8],
+                            #'endLength': row[9],
+                            'parentCellId': row[10],
+                            'position': row[11],
+                            #'time': row[12],
+                            'width': row[13],
+                            'length': row[14],
+                            'ends': row[15],
+                            'orientation': row[16],
+                            'elongationRate': row[17],
+                            #'avgElongationRate': row[18],
+                            'gfp': row[19],
+                            'rfp': row[20],
+                            'flag': row[21]}
+            
+            currentRow += 1
+            
+    return raw, cellsByStep
+
+# ------------------------------------------------------------------
 ### Functions for processing the data 
 # ------------------------------------------------------------------
 
@@ -78,88 +148,152 @@ def getConj(raw):
 
     return dictConj, firsts
     
-# input: cellId, step number 
-# output: link to prior frame (or note the lack thereof)
-def getTrackLink(cellId, step):
+
+# input: relevant cellID and timestep
+# output: uid
+def updateId(cellId, step):
+
+    '''TO DO'''
+
     return 0
 
-# input: 
-def updateLineage(cellId):
-    return 0
-    
 # ------------------------------------------------------------------
-### Getting the data organized
+### Actual Dictionary Outputs
 # ------------------------------------------------------------------
 
-# input: file name
-# output: dictionary storing all cells and info, dictionary of time step + uid/cell id
-# makes python dictionaries to store the data from the csv while processing
-def readFile(file):
+# input: raw data
+# output: dict of uid to time step
+# no changes to data
+def dictSteps(raw):
 
-    # we will want a dictionary storing all the cells 
-    # each will be its own dictionary of values
-    raw = dict()
+    step = dict()
 
-    # and a dictionary containing cells in each time step
-    # each a dict with unique id: cell id
-    cellsByStep = dict()
+    for cell in raw.keys():
 
-    # going to manually set the number of steps for now - can probably get this info?
-    # create a new list for each time step
-    numSteps = 225
-    for i in range(1,numSteps+1):
-        cellsByStep[i] = []
+        step[raw] = raw[cell]['step']
 
-    # keep track of the row -- starts at 2 because header
-    # rows will be the new cell id values
-    currentRow = 2
+    return step
 
-    # read in the csv file and store the information in the dictionaries 
-    with open('data.csv', 'r') as file:
+# input: raw data
+# output: dict of uid to cell id
+# no changes to data
+def dictCellId(raw):
+
+    cellId = dict()
+
+    for cell in raw.keys():
+
+        cellId[raw] = raw[cell]['cellId']
+
+    return cellId
+
+
+# input: raw data
+# output: dict of uid to lineages
+# only updating id to uid
+def dictLineage(raw):
+
+    lineage = dict()
+
+    ''' TO DO'''
+
+    return lineage
+
+# input: raw data
+# output: dict of uid to parent Cell Id
+# no changes to data
+def dictParent(raw):
+
+    parent = dict()
+
+    for cell in raw.keys():
+
+        parent[cell] = raw[cell]['parentCellId']
+
+    return parent
+
+# input: raw data
+# output: dict of uid to positions
+# no changes to data
+def dictPosition(raw):
+
+    position = dict()
+
+    for cell in raw.keys():
+
+        position[cell] = raw[cell]['position']
+
+    return position
+
+# input: raw data
+# output: dict of uid to widths
+# no changes to data
+def dictWidth(raw):
+
+    width = dict()
+
+    for cell in raw.keys():
+
+        width[cell] = raw[cell]['width']
+
+    return width
+
+# input: raw data
+# output: dict of uid to length
+# no changes to data
+def dictLength(raw):
+
+    length = dict()
+
+    for cell in raw.keys():
+
+        length[raw] = raw[cell]['length']
+
+    return length
+
+# input: raw data
+# output: dict of uid to ends
+# no changes to data
+def dictEnds(raw):
+
+    ends = dict()
+
+    for cell in raw.keys():
+
+        ends[raw] = raw[cell]['ends']
+
+    return ends
+
+
+# input: raw data
+# output: dict of uid to ends
+# no changes to data
+def dictOrientation(raw):
+
+    orientation = dict()
+
+    for cell in raw.keys():
+
+        orientation[raw] = raw[cell]['orientation']
+
+    return orientation
+
+# input: raw data
+# output: dict of uid to growth rates
+# -1 for negative values, otherwise exactly as reported
+def dictGrowth(raw):
+
+    growth = dict()
+
+    for cell in raw.keys():
+
+        if raw[cell]['elongationRate'] < 0:
+            growth[cell] = -1
         
-        reader = csv.reader(file)
+        else:
+            growth[cell] = raw[cell]['elongationRate']
 
-        # since there is a header, we skip line one
-        next(reader)
-
-        for row in reader:
-
-            # first add relevant info to the cellsByStep
-            step = int(row[0])
-            cellId = int(row[2])
-            cellsByStep[step].append({currentRow: cellId})
-
-            # then, add everything to the main dictionary
-            raw[currentRow] = {'step': step, 
-                            #'objectNum': row[1],
-                            'cellId': row[2],
-                            'lineage': row[3],
-                            #'divideFlag': row[4],
-                            #'cellAge': row[5],
-                            #'growthRate': row[6],
-                            #'lifetime': row[7],
-                            #'startLength': row[8],
-                            #'endLength': row[9],
-                            'parentCellId': row[10],
-                            'position': row[11],
-                            #'time': row[12],
-                            'width': row[13],
-                            'length': row[14],
-                            'ends': row[15],
-                            'orientation': row[16],
-                            'elongationRate': row[17],
-                            #'avgElongationRate': row[18],
-                            'gfp': row[19],
-                            'rfp': row[20],
-                            'flag': row[21]}
-            
-            currentRow += 1
-            
-    return raw, cellsByStep
-
-# ------------------------------------------------------------------
-### Actual Processing Steps 
-# ------------------------------------------------------------------
+    return growth
 
 # input: raw data, dictionary of transconjugants
 # output: dictionary mapping each uid to cell colour
@@ -178,4 +312,68 @@ def dictColours(raw, dictConj):
             colours[cell] = redOrGreen(raw[cell]['rfp'], raw[cell]['gfp'])
 
     return colours
+
+# input: raw data
+# output: dict of uid to uid of past track/parent link
+# no distinction between parent/self 
+def dictBackwardLinks(raw):
+
+    backwardsLinks = dict()
+
+    ''' TO DO'''
+
+    return backwardsLinks
+
+# input: raw data
+# output: dict of uid to uid of future track/child link
+# no distinction between parent/self 
+def dictForwardLinks(raw):
+
+    forwardsLinks = dict()
+
+    ''' TO DO'''
+
+    return forwardsLinks
+
+# input: raw data
+# output: dict of uid to all potential neighbours 
+def dictNeighbours(raw):
+
+    neighbours = dict()
+
+    ''' TO DO'''
+
+    return neighbours
+
+# input: raw data
+# output: dict of uid to whether the cell divided before next time step
+# 0 for no division, 1 for division
+def dictDivisions(raw):
+
+    division = dict()
+
+    ''' TO DO'''
+
+    return division
+
+
+# input: dictSteps
+# output: dictionary of time step to list of uid of cells in that step
+def dictCellsByStep(dictSteps):
+
+    cellsByStep = dict()
+
+    for cell in dictSteps.keys():
+
+        step = dictSteps[cell]
+
+        # if the step is already in the dictionary, add the cell to the list
+        if step in cellsByStep.keys():
+            cellsByStep[step].append(cell)
+
+        # otherwise, make the dictionary entry
+        else:
+            cellsByStep[step] = [cell]
+
+    return cellsByStep
 
