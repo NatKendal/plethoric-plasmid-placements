@@ -1,4 +1,5 @@
 import csv
+import math 
 
 # ------------------------------------------------------------------
 ### Getting the data organized
@@ -392,13 +393,38 @@ def dictForwardLinks(raw, cellsByStep):
 
     return forwardsLinks
 
-# input: raw data
+# input: raw data, cellsByStep
 # output: dict of uid to all potential neighbours 
-def dictNeighbours(raw):
+def dictNeighbours(raw, cellsByStep):
 
-    neighbours = dict()
+    # initialize to no neighbours
+    neighbours = {uid: [] for uid in raw.keys()}
 
-    ''' TO DO'''
+    # we find neighbors for each time step
+    for step in cellsByStep.keys():
+
+        # list of uid of cells not yet checked in step
+        # second element in each item is the cell uid
+        toCheck = [item[1] for item in cellsByStep[step]]
+
+        # double loop - compare each cell against every other
+        for cell1 in toCheck:
+
+            # no need to compare against self / to ever check it later
+            toCheck.remove(cell1)
+
+            # check against all remaining cells
+            for cell2 in toCheck:
+
+                distance = math.distance(raw[cell1]['position'], raw[cell2]['position'])
+
+                # potential neighbours must be within 5 cell lengths (5 microns each)
+                # this is a quarter of the trap... maybe we should start smaller...
+                if distance <= 25:
+
+                    # symmetric relation so add to both
+                    neighbours[cell1].append(cell2)
+                    neighbours[cell2].append(cell1)
 
     return neighbours
 
