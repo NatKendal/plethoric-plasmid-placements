@@ -7,30 +7,23 @@ import csv
 # input: file name
 # output: dictionary storing all cells and info, dictionary of time step + uid/cell id
 # makes python dictionaries to store the data from the csv while processing
-def readFile(file):
-
+def readFile(filename):
     # we will want a dictionary storing all the cells 
     # each will be its own dictionary of values
     raw = dict()
 
     # and a dictionary containing cells in each time step
-    # each a dict with unique id: cell id
+    # each cell is a list [cell, unique]
     cellsByStep = dict()
-
-    # going to manually set the number of steps for now - can probably get this info?
-    # create a new list for each time step
-    numSteps = 225
-    for i in range(1,numSteps+1):
-        cellsByStep[i] = []
 
     # keep track of the row -- starts at 2 because header
     # rows will be the new cell id values
     currentRow = 2
 
-    # read in the csv file and store the information in the dictionaries 
-    with open('data.csv', 'r') as file:
+    #read in the csv file and store the information in the dictionaries 
+    with open(filename, 'r') as fin:
         
-        reader = csv.reader(file)
+        reader = csv.reader(fin, delimiter=',')
 
         # since there is a header, we skip line one
         next(reader)
@@ -40,35 +33,51 @@ def readFile(file):
             # first add relevant info to the cellsByStep
             step = int(row[0])
             cellId = int(row[2])
-            cellsByStep[step].append({currentRow: cellId})
+
+            if step in cellsByStep.keys():
+                cellsByStep[step].append((cellId, currentRow))
+            else:
+                cellsByStep[step] = [(cellId,currentRow)]
 
             # then, add everything to the main dictionary
-            raw[currentRow] = {'step': step, 
+            raw[currentRow] = {
+                            'step': int(row[0]), 
                             #'objectNum': row[1],
-                            'cellId': row[2],
-                            'lineage': row[3],
+                            'cellId': int(row[2]),
+                            'lineage': int(row[3]),
                             #'divideFlag': row[4],
                             #'cellAge': row[5],
                             #'growthRate': row[6],
                             #'lifetime': row[7],
                             #'startLength': row[8],
                             #'endLength': row[9],
-                            'parentCellId': row[10],
+                            'parentCellId': int(row[10]),
                             'position': row[11],
                             #'time': row[12],
-                            'width': row[13],
-                            'length': row[14],
+                            'width': float(row[13]),
+                            'length': float(row[14]),
                             'ends': row[15],
                             'orientation': row[16],
-                            'elongationRate': row[17],
+                            'elongationRate': float(row[17]),
                             #'avgElongationRate': row[18],
-                            'gfp': row[19],
-                            'rfp': row[20],
-                            'flag': row[21]}
-            
+                            'gfp': float(row[19]),
+                            'rfp': float(row[20]),
+                            'flag': int(row[21])}
+
+            # make things into ints/floats
+            pos = raw[currentRow]['position'][1:-1].split(', ')
+            raw[currentRow]['position'] = [float(pos[0]), float(pos[1])]
+
+            ori = raw[currentRow]['orientation'][1:-1].split(', ')
+            raw[currentRow]['orientation'] = [float(ori[0]), float(ori[1])]
+
+            e = raw[currentRow]['ends'][2:-2].split(', ')
+            raw[currentRow]['ends'] = [[float(e[0]), float(e[1][:-1])], [float(e[2][1:]), float(e[3])]]
+
             currentRow += 1
             
     return raw, cellsByStep
+
 
 # ------------------------------------------------------------------
 ### Functions for processing the data 
@@ -77,7 +86,7 @@ def readFile(file):
 # input: gfp and rfp values for one cell
 # output: 0 for donor cell, 1 for recipient cell
 # only run this if being a transconjugant is already ruled out
-def redOrGreen(rfp,gfp):
+def redOrGreen(rfp, gfp):
 
     # fluorescence thresholds for red/green
     recipThreshold=2280/16383
@@ -142,7 +151,6 @@ def getConj(raw):
             firsts.append(cell)
             status = 2
 
-
         # add the dictionary entry
         dictConj[cell] = status
 
@@ -151,9 +159,9 @@ def getConj(raw):
 
 # input: relevant cellID and timestep
 # output: uid
-def updateId(cellId, step):
+def getUid(cellId, step, cellsByStep):
 
-    '''TO DO'''
+    ''' TODO '''
 
     return 0
 
@@ -313,25 +321,74 @@ def dictColours(raw, dictConj):
 
     return colours
 
-# input: raw data
+# input: raw data, cellsByStep
 # output: dict of uid to uid of past track/parent link
 # no distinction between parent/self 
-def dictBackwardLinks(raw):
+def dictBackwardLinks(raw,cellsByStep):
 
     backwardsLinks = dict()
 
-    ''' TO DO'''
+    for cell in raw.keys():
+
+        # check the current time step
+        step = raw[cell]['step']
+
+        # if it is in the first time step, no backwards link
+        if step == 1:
+            backwardsLinks[cell] = -1
+
+        else:
+            # first check if the cell id exists in the previous time frame
+            found = False
+            for item in cellsByStep[step-1]:
+                if item[0] == raw[cell]['cellId']:
+                    backwardsLinks[cell] = item[1]
+                    found = True
+                    break
+            
+            # if we did not find its prior self, check for parents
+            if not found:
+                for item in cellsByStep[step-1]:
+                    if item[0] == raw[cell]['parentCellId']:
+                        backwardsLinks[cell] = item[1]
+                        found = True
+                        break
+
+            # if we also did not find a parent, error, set to -1
+            if not found:
+                backwardsLinks[cell] = -1
 
     return backwardsLinks
 
-# input: raw data
+# input: raw data, cellsByStep
 # output: dict of uid to uid of future track/child link
 # no distinction between parent/self 
-def dictForwardLinks(raw):
+def dictForwardLinks(raw, cellsByStep):
 
-    forwardsLinks = dict()
+    # initialize to no forward link
+    forwardsLinks = {uid: [] for uid in raw.keys()}
 
-    ''' TO DO'''
+    for cell in raw.keys():
+
+        # check the current time step
+        step = raw[cell]['step']
+
+        # if it is in the first time step, nothing to check 
+        if step == 1:
+            continue
+
+        # check if the cell id exists in the previous time frame
+        # or if the parent id exists
+        # if it does, current cell is the forward link/child of that cell
+        found = False
+        for item in cellsByStep[step-1]:
+            if item[0] == raw[cell]['cellId']:
+                forwardsLinks[item[1]].append(cell)
+                break
+
+            elif item[0] == raw[cell]['parentCellId']:
+                forwardsLinks[item[1]].append(cell)
+                break
 
     return forwardsLinks
 
