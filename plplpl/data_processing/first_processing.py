@@ -22,9 +22,9 @@ def readFile(filename):
     currentRow = 2
 
     #read in the csv file and store the information in the dictionaries 
-    with open(filename, 'r') as fin:
+    with open(filename, 'r') as file:
         
-        reader = csv.reader(fin, delimiter=',')
+        reader = csv.reader(file, delimiter=',')
 
         # since there is a header, we skip line one
         next(reader)
@@ -72,13 +72,12 @@ def readFile(filename):
             ori = raw[currentRow]['orientation'][1:-1].split(', ')
             raw[currentRow]['orientation'] = [float(ori[0]), float(ori[1])]
 
-            e = raw[currentRow]['ends'][2:-2].split(', ')
-            raw[currentRow]['ends'] = [[float(e[0]), float(e[1][:-1])], [float(e[2][1:]), float(e[3])]]
+            ends = raw[currentRow]['ends'][2:-2].split(', ')
+            raw[currentRow]['ends'] = [[float(ends[0]), float(ends[1][:-1])], [float(ends[2][1:]), float(ends[3])]]
 
             currentRow += 1
             
     return raw, cellsByStep
-
 
 # ------------------------------------------------------------------
 ### Functions for processing the data 
@@ -90,19 +89,19 @@ def readFile(filename):
 def redOrGreen(rfp, gfp):
 
     # fluorescence thresholds for red/green
-    recipThreshold=2280/16383
     donorThreshold=1700/16383
+    recipThreshold=2280/16383
 
     # check if it is above each threshold and assign a boolean value
-    recip = (gfp >= recipThreshold)
     donor = (rfp >= donorThreshold)
+    recip = (gfp >= recipThreshold)
 
     # if it is above only one threshold, return that one
-    if recip and not donor:
-        return 1
-    
-    elif donor and not recip:
+    if donor and not recip:
         return 0
+    
+    elif recip and not donor:
+        return 1
     
     # otherwise, normalize and take the larger one
     # bias is towards assuming it is a recipient
@@ -111,14 +110,14 @@ def redOrGreen(rfp, gfp):
         
     else:
         return 0
-    
+
 # input: all data
 # output: dict of all transconjugants, list of first transconjugants
 # -1 for not conjugant, 2 for conjugant (not reusing 0/1 to avoid errors)
 def getConj(raw):
 
     # stores all seen transconjugant cell id
-    known = set()
+    known = []
 
     # stores id of all first transconjugants
     firsts = []
@@ -126,9 +125,13 @@ def getConj(raw):
     # dictionary we want
     dictConj = dict()
 
+    # sort the keys, just in case
+    orderedCells = list(raw.keys())
+    orderedCells.sort()
+
     # check each row to see if it is flagged
     # we sort it to make sure iwe go forward in time
-    for cell in raw.keys().sort():
+    for cell in orderedCells:
 
         # checks
         status = -1
@@ -142,13 +145,13 @@ def getConj(raw):
         # in this case it divided but was not a first
         # does need to be added
         elif raw[cell]['parentCellId'] in known:
-            known.add(raw[cell]['cellId'])
+            known.append(raw[cell]['cellId'])
             status = 2
 
         # check if flagged, and not yet known
         # this would be a first, add uid to that list
         elif raw[cell]['flag'] == 1:
-            known.add(raw[cell]['cellId'])
+            known.append(raw[cell]['cellId'])
             firsts.append(cell)
             status = 2
 
@@ -157,15 +160,6 @@ def getConj(raw):
 
     return dictConj, firsts
     
-
-# input: relevant cellID and timestep
-# output: uid
-def getUid(cellId, step, cellsByStep):
-
-    ''' TODO '''
-
-    return 0
-
 # ------------------------------------------------------------------
 ### Actual Dictionary Outputs
 # ------------------------------------------------------------------
@@ -179,7 +173,7 @@ def dictSteps(raw):
 
     for cell in raw.keys():
 
-        step[raw] = raw[cell]['step']
+        step[cell] = raw[cell]['step']
 
     return step
 
@@ -192,21 +186,9 @@ def dictCellId(raw):
 
     for cell in raw.keys():
 
-        cellId[raw] = raw[cell]['cellId']
+        cellId[cell] = raw[cell]['cellId']
 
     return cellId
-
-
-# input: raw data
-# output: dict of uid to lineages
-# only updating id to uid
-def dictLineage(raw):
-
-    lineage = dict()
-
-    ''' TO DO'''
-
-    return lineage
 
 # input: raw data
 # output: dict of uid to parent Cell Id
@@ -256,7 +238,7 @@ def dictLength(raw):
 
     for cell in raw.keys():
 
-        length[raw] = raw[cell]['length']
+        length[cell] = raw[cell]['length']
 
     return length
 
@@ -269,7 +251,7 @@ def dictEnds(raw):
 
     for cell in raw.keys():
 
-        ends[raw] = raw[cell]['ends']
+        ends[cell] = raw[cell]['ends']
 
     return ends
 
@@ -283,7 +265,7 @@ def dictOrientation(raw):
 
     for cell in raw.keys():
 
-        orientation[raw] = raw[cell]['orientation']
+        orientation[cell] = raw[cell]['orientation']
 
     return orientation
 
@@ -327,7 +309,7 @@ def dictColours(raw, dictConj):
 # no distinction between parent/self 
 def dictBackwardLinks(raw,cellsByStep):
 
-    backwardsLinks = dict()
+    backwardLinks = dict()
 
     for cell in raw.keys():
 
@@ -336,14 +318,14 @@ def dictBackwardLinks(raw,cellsByStep):
 
         # if it is in the first time step, no backwards link
         if step == 1:
-            backwardsLinks[cell] = -1
+            backwardLinks[cell] = -1
 
         else:
             # first check if the cell id exists in the previous time frame
             found = False
             for item in cellsByStep[step-1]:
                 if item[0] == raw[cell]['cellId']:
-                    backwardsLinks[cell] = item[1]
+                    backwardLinks[cell] = item[1]
                     found = True
                     break
             
@@ -351,15 +333,15 @@ def dictBackwardLinks(raw,cellsByStep):
             if not found:
                 for item in cellsByStep[step-1]:
                     if item[0] == raw[cell]['parentCellId']:
-                        backwardsLinks[cell] = item[1]
+                        backwardLinks[cell] = item[1]
                         found = True
                         break
 
             # if we also did not find a parent, error, set to -1
             if not found:
-                backwardsLinks[cell] = -1
+                backwardLinks[cell] = -1
 
-    return backwardsLinks
+    return backwardLinks
 
 # input: raw data, cellsByStep
 # output: dict of uid to uid of future track/child link
@@ -367,7 +349,7 @@ def dictBackwardLinks(raw,cellsByStep):
 def dictForwardLinks(raw, cellsByStep):
 
     # initialize to no forward link
-    forwardsLinks = {uid: [] for uid in raw.keys()}
+    forwardLinks = {uid: [] for uid in raw.keys()}
 
     for cell in raw.keys():
 
@@ -384,14 +366,14 @@ def dictForwardLinks(raw, cellsByStep):
         found = False
         for item in cellsByStep[step-1]:
             if item[0] == raw[cell]['cellId']:
-                forwardsLinks[item[1]].append(cell)
+                forwardLinks[item[1]].append(cell)
                 break
 
             elif item[0] == raw[cell]['parentCellId']:
-                forwardsLinks[item[1]].append(cell)
+                forwardLinks[item[1]].append(cell)
                 break
 
-    return forwardsLinks
+    return forwardLinks
 
 # input: raw data, cellsByStep
 # output: dict of uid to all potential neighbours 
@@ -416,7 +398,7 @@ def dictNeighbours(raw, cellsByStep):
             # check against all remaining cells
             for cell2 in toCheck:
 
-                distance = math.distance(raw[cell1]['position'], raw[cell2]['position'])
+                distance = math.dist(raw[cell1]['position'], raw[cell2]['position'])
 
                 # potential neighbours must be within 5 cell lengths (5 microns each)
                 # this is a quarter of the trap... maybe we should start smaller...
@@ -428,35 +410,34 @@ def dictNeighbours(raw, cellsByStep):
 
     return neighbours
 
-# input: raw data
-# output: dict of uid to whether the cell divided before next time step
-# 0 for no division, 1 for division
-def dictDivisions(raw):
-
-    division = dict()
-
-    ''' TO DO'''
-
-    return division
-
-
 # input: dictSteps
 # output: dictionary of time step to list of uid of cells in that step
-def dictCellsByStep(dictSteps):
+def dictByStep(dictSteps):
 
-    cellsByStep = dict()
+    byStep = dict()
 
     for cell in dictSteps.keys():
 
         step = dictSteps[cell]
 
         # if the step is already in the dictionary, add the cell to the list
-        if step in cellsByStep.keys():
-            cellsByStep[step].append(cell)
+        if step in byStep.keys():
+            byStep[step].append(cell)
 
         # otherwise, make the dictionary entry
         else:
-            cellsByStep[step] = [cell]
+            byStep[step] = [cell]
 
-    return cellsByStep
+    return byStep
+
+# input: raw data
+# output: dict of uid to lineages
+# only updating id to uid
+def dictLineage(raw):
+
+    lineage = dict()
+
+    ''' TO DO'''
+
+    return lineage
 
