@@ -119,7 +119,7 @@ def getConj(raw):
     # stores all seen transconjugant cell id
     known = []
 
-    # stores id of all first transconjugants
+    # stores uid of all first transconjugants
     firsts = []
 
     # dictionary we want
@@ -288,6 +288,7 @@ def dictGrowth(raw):
 
 # input: raw data, dictionary of transconjugants
 # output: dictionary mapping each uid to cell colour
+# 0 for donor cell, 1 for recipient cell, 2 is transconjugant
 def dictColours(raw, dictConj):
 
     colours = dict()
