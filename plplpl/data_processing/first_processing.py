@@ -431,14 +431,27 @@ def dictByStep(dictSteps):
 
     return byStep
 
-# input: raw data
-# output: dict of uid to lineages
-# only updating id to uid
-def dictLineage(raw):
+# input: raw data, dictBackwardLinks
+# output: dict of uid to lineages (uid of first cell in lineage)
+def dictLineage(raw, dictBackwardLinks):
 
-    lineage = dict()
+    lineage = {uid: -1 for uid in raw.keys()}
 
-    ''' TO DO'''
+    for cell in raw.keys():
+
+        current = cell
+
+        # step back through parents until either the parent has a lineage
+        # or you run out of parents to check
+        while lineage[cell] == -1:
+
+            if lineage[current] != -1:
+                lineage[cell] = lineage[current]
+
+            elif dictBackwardLinks[current] == -1:
+                lineage[cell] = current
+
+            else:
+                current = dictBackwardLinks[current]
 
     return lineage
-
