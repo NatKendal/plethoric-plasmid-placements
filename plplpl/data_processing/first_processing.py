@@ -377,7 +377,7 @@ def dictForwardLinks(raw, cellsByStep):
 
 # input: raw data, cellsByStep
 # output: dict of uid to all potential neighbours 
-def dictNeighbours(raw, cellsByStep):
+def dictNeighbours(raw, cellsByStep, maxDistance=25):
 
     # initialize to no neighbours
     neighbours = {uid: [] for uid in raw.keys()}
@@ -402,7 +402,7 @@ def dictNeighbours(raw, cellsByStep):
 
                 # potential neighbours must be within 5 cell lengths (5 microns each)
                 # this is a quarter of the trap... maybe we should start smaller...
-                if distance <= 25:
+                if distance <= maxDistance:
 
                     # symmetric relation so add to both
                     neighbours[cell1].append(cell2)
