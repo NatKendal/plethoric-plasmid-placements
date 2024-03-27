@@ -4,3 +4,25 @@ Maximum possible distance to consider between two cells:
 Build model in plplpl/model/
 Make functions in plplpl/conjugation-functions/
 Write data processing functions in plplpl/data-processing
+
+Structure:
+
+data:
+    model1:
+        model1_raw.csv
+        model1_dictionaries:
+            model1_colors.pickle
+            ...
+        model1_[probability_function_name]_probabilities.pickle
+        model1_[probability_function_name]_model.pickle
+tools:
+    first_conjugation_calculator.py*
+plplpl:
+    conjugation_functions:
+        naive.py*
+    data_processing:
+        first_processing.py
+    model:
+        compute_probabilities.py*
+        model_builder.py*
+ 

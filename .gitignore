@@ -2,4 +2,5 @@
 *.swp
 */__pycache__/*
 *.DS_Store
-/data/old_dataset_1
+/raw_data/*
+!/raw_data/RAW_DATA_GOES_HERE
