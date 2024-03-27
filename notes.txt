@@ -5,6 +5,8 @@ Build model in plplpl/model/
 Make functions in plplpl/conjugation-functions/
 Write data processing functions in plplpl/data-processing
 
+
+
 Structure:
 
 data:
@@ -18,6 +20,10 @@ data:
 tools:
     first_conjugation_calculator.py*
 plplpl:
+    activation_delay_functions:
+        naive.py*
+    colour_delay_functions:
+        naive.py*
     conjugation_functions:
         naive.py*
     data_processing:
@@ -25,4 +31,5 @@ plplpl:
     model:
         compute_probabilities.py*
         model_builder.py*
- 
+    NoisyOrCPD:
+        NoisyOrCPD.py

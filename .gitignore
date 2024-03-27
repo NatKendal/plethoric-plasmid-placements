@@ -4,3 +4,5 @@
 *.DS_Store
 /raw_data/*
 !/raw_data/RAW_DATA_GOES_HERE
+my_notes.txt
+*.pyc
