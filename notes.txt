@@ -22,7 +22,7 @@ data:
 tools:
     first_conjugation_calculator.py*
 plplpl:
-    activation_delay_functions:
+    maturation_delay_functions:
         naive.py*
     colour_delay_functions:
         naive.py*

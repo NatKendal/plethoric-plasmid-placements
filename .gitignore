@@ -7,3 +7,5 @@
 my_notes.txt
 *.pyc
 plplpl/backup/*
+data/*
+!data/FOLDERS_WITH_INDIVIDUAL_MODELS_GO_HERE
