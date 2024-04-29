@@ -1,4 +1,4 @@
-# a very first version of the activation delay function
+# a very first version of the maturation delay function
 
 import math
 
@@ -19,7 +19,7 @@ def calcValues(avg=16, std=5, min=2, max=31):
     return vals
 
 # input: time step of cell we are looking at and ancestor, dictionary of values in range
-# output: probability the cell we are looking at is active, given that ancestor has gene
-def probActive(tCell, tAncestor, dictValues):
+# output: probability the cell we are looking at is mature, given that ancestor has gene
+def probMature(tCell, tAncestor, dictValues):
 
     return ( dictValues.get(tCell-tAncestor, 0) )

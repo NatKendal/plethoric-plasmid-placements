@@ -1,4 +1,4 @@
-# specify the cdf, get the edge weights for activation
+# specify the cdf, get the edge weights for maturation
 
 import math
 import numpy as np
@@ -15,7 +15,7 @@ def calcCdfValues(avg=80, std=20, step_length = 5):
     min_val = avg - 3 * std 
     max_val = avg + 3 * std 
 
-    assert min_val > 0, "minimum activation time is less than 0"
+    assert min_val > 0, "minimum maturation time is less than 0"
 
     cdf_vals = dict()
 
@@ -27,7 +27,7 @@ def calcCdfValues(avg=80, std=20, step_length = 5):
 
 # input: dictionary of cdf values
 # output: dictionary of edge weights
-def calcActivationWeights(cdf_vals):
+def calcMaturationWeights(cdf_vals):
 
     # get minimum and maximum
     min_val = min(cdf_vals.keys())
@@ -47,7 +47,7 @@ def calcActivationWeights(cdf_vals):
     return edge_vals
 
 # input: time between cells in minutes, dictionary of edge values, step length
-def getActivationWeights(time, edge_vals, step_length = 5):
+def getMaturationWeights(time, edge_vals, step_length = 5):
 
     assert time % step_length == 0, "time between cells is not a multiple of time between images"
 
