@@ -10,13 +10,15 @@ Write data processing functions in plplpl/data-processing
 Structure:
 
 data:
-    model1:
-        model1_raw.csv
-        model1_dictionaries:
-            model1_colors.pickle
+    modelname:
+        modelname_raw.csv
+        modelname_data:
+            modelname_colors.pickle
             ...
-        model1_[probability_function_name]_probabilities.pickle
-        model1_[probability_function_name]_model.pickle
+        modelname_graph.pickle
+        modelname_edgeweights_[conjugation function].pickle
+        modelname_model_[conjugation function]_[colour function]_[activation function].pickle
+
 tools:
     first_conjugation_calculator.py*
 plplpl:

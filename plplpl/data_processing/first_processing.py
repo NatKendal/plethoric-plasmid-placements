@@ -1,6 +1,8 @@
 import csv
-import math 
+import math
+import pickle
 
+MAX_DISTANCE = 10
 # ------------------------------------------------------------------
 ### Getting the data organized
 # ------------------------------------------------------------------
@@ -378,7 +380,7 @@ def dictForwardLinks(raw, cellsByStep):
 
 # input: raw data, cellsByStep
 # output: dict of uid to all potential neighbours 
-def dictNeighbours(raw, cellsByStep, maxDistance=25):
+def dictNeighbours(raw, cellsByStep, maxDistance=MAX_DISTANCE):
 
     # initialize to no neighbours
     neighbours = {uid: [] for uid in raw.keys()}
@@ -455,3 +457,65 @@ def dictLineage(raw, dictBackwardLinks):
                 current = dictBackwardLinks[current]
 
     return lineage
+
+def saveAll(filename, saveDirectory, modelname, data):
+    raw, cellsByStep = readFile(filename)
+    dictConj, firsts = getConj(raw)
+    backwardsLinks = dictBackwardsLinks(raw, cellsByStep)
+
+    with open(saveDirectory + modelname + "_step.pickle", "wb") as f:
+        pickle.dump(dictSteps(raw), f)
+
+    with open(saveDirectory + modelname + "_cellId.pickle", "wb") as f:
+        pickle.dump(dictCellId(raw), f)
+
+    with open(saveDirectory + modelname + "_parent.pickle", "wb") as f:
+        pickle.dump(dictParent(raw), f)
+
+    with open(saveDirectory + modelname + "_position.pickle", "wb") as f:
+        pickle.dump(dictPosition(raw), f)
+
+    with open(saveDirectory + modelname + "_width.pickle", "wb") as f:
+        pickle.dump(dictWidth(raw), f)
+
+    with open(saveDirectory + modelname + "_length.pickle", "wb") as f:
+        pickle.dump(dictLength(raw), f)
+
+    with open(saveDirectory + modelname + "_ends.pickle", "wb") as f:
+        pickle.dump(dictEnds(raw), f)
+
+    with open(saveDirectory + modelname + "_orientation.pickle", "wb") as f:
+        pickle.dump(dictOrientation(raw), f)
+
+    with open(saveDirectory + modelname + "_growth.pickle", "wb") as f:
+        pickle.dump(dictGrowth(raw), f)
+
+    with open(saveDirectory + modelname + "_colours.pickle", "wb") as f:
+        pickle.dump(dictColours(raw, dictConj), f)
+
+    with open(saveDirectory + modelname + "_forwardLinks.pickle", "wb") as f:
+        pickle.dump(dictForwardLinks(raw, cellsByStep), f)
+
+    with open(saveDirectory + modelname + "_neighbours.pickle", "wb") as f:
+        pickle.dump(dictNeighbours(raw, cellsByStep), f)
+
+    with open(saveDirectory + modelname + "_byStep.pickle", "wb") as f:
+        pickle.dump(dictByStep(raw), f)
+
+    with open(saveDirectory + modelname + "_lineage.pickle", "wb") as f:
+        pickle.dump(dictLineage(raw, backwardsLinks), f)
+
+    with open(saveDirectory + modelname + "_raw.pickle", "wb") as f:
+        pickle.dump(raw, f)
+
+    with open(saveDirectory + modelname + "_cellsByStep.pickle", "wb") as f:
+        pickle.dump(cellsByStep, f)
+
+    with open(saveDirectory + modelname + "_backwardLinks.pickle", "wb") as f:
+        pickle.dump(backwardsLinks, f)
+
+    with open(saveDirectory + modelname + "_conjugant.pickle", "wb") as f:
+        pickle.dump(dictConj, f)
+
+    with open(saveDirectory + modelname + "_conjugantList.pickle", "wb") as f:
+        pickle.dump(firsts, f)
