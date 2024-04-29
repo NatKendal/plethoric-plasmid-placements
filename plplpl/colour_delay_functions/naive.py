@@ -14,7 +14,7 @@ def calcValues(avg=20, std=3, min=11, max=29):
         vals[i] = 0.5 * (1 + math.erf( (i - avg) / (std * math.sqrt(2)) ))
 
     # force maximum value to be 1
-    vals[max] = 1
+    vals[max+1] = 1
 
     return vals
 
