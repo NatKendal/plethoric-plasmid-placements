@@ -1,6 +1,10 @@
 import csv
-import math 
+import math
+import os
+import pickle
+import sys
 
+MAX_DISTANCE = 10
 # ------------------------------------------------------------------
 ### Getting the data organized
 # ------------------------------------------------------------------
@@ -45,7 +49,7 @@ def readFile(filename):
                             'step': int(row[0]), 
                             #'objectNum': row[1], 
                             'cellId': int(row[2]),
-                            'lineage': int(row[3]),
+                            'lineage': int(float(row[3])),
                             #'divideFlag': row[4],
                             'cellAge': row[5],
                             'growthRate': row[6],
@@ -378,7 +382,7 @@ def dictForwardLinks(raw, cellsByStep):
 
 # input: raw data, cellsByStep
 # output: dict of uid to all potential neighbours 
-def dictNeighbours(raw, cellsByStep, maxDistance=25):
+def dictNeighbours(raw, cellsByStep, maxDistance=MAX_DISTANCE):
 
     # initialize to no neighbours
     neighbours = {uid: [] for uid in raw.keys()}
@@ -455,3 +459,107 @@ def dictLineage(raw, dictBackwardLinks):
                 current = dictBackwardLinks[current]
 
     return lineage
+
+def dictCellAge(raw):
+    return {cell:raw[cell]["cellAge"] for cell in raw}
+
+def dictGrowthRate(raw):
+    return {cell:raw[cell]["growthRate"] for cell in raw}
+
+def dictLifetime(raw):
+    return {cell:raw[cell]["lifetime"] for cell in raw}
+
+def dictStartLength(raw):
+    return {cell:raw[cell]["startLength"] for cell in raw}
+
+def dictEndLength(raw):
+    return {cell:raw[cell]["endLength"] for cell in raw}
+
+def dictAvgElongationRate(raw):
+    return {cell:raw[cell]["avgElongationRate"] for cell in raw}
+
+def saveAll(rawCSVfilename, saveDirectory, modelname):
+    raw, cellsByStep = readFile(rawCSVfilename)
+    dictConj, firsts = getConj(raw)
+    backwardLinks = dictBackwardLinks(raw, cellsByStep)
+    steps = dictSteps(raw)
+    os.makedirs(saveDirectory, exist_ok=True)
+
+    with open(saveDirectory + modelname + "_cellId.pickle", "wb") as f:
+        pickle.dump(dictCellId(raw), f)
+
+    with open(saveDirectory + modelname + "_parent.pickle", "wb") as f:
+        pickle.dump(dictParent(raw), f)
+
+    with open(saveDirectory + modelname + "_position.pickle", "wb") as f:
+        pickle.dump(dictPosition(raw), f)
+
+    with open(saveDirectory + modelname + "_width.pickle", "wb") as f:
+        pickle.dump(dictWidth(raw), f)
+
+    with open(saveDirectory + modelname + "_length.pickle", "wb") as f:
+        pickle.dump(dictLength(raw), f)
+
+    with open(saveDirectory + modelname + "_ends.pickle", "wb") as f:
+        pickle.dump(dictEnds(raw), f)
+
+    with open(saveDirectory + modelname + "_orientation.pickle", "wb") as f:
+        pickle.dump(dictOrientation(raw), f)
+
+    with open(saveDirectory + modelname + "_growth.pickle", "wb") as f:
+        pickle.dump(dictGrowth(raw), f)
+
+    with open(saveDirectory + modelname + "_colours.pickle", "wb") as f:
+        pickle.dump(dictColours(raw, dictConj), f)
+
+    with open(saveDirectory + modelname + "_forwardLinks.pickle", "wb") as f:
+        pickle.dump(dictForwardLinks(raw, cellsByStep), f)
+
+    with open(saveDirectory + modelname + "_neighbours.pickle", "wb") as f:
+        pickle.dump(dictNeighbours(raw, cellsByStep), f)
+
+    with open(saveDirectory + modelname + "_byStep.pickle", "wb") as f:
+        pickle.dump(dictByStep(steps), f)
+
+    with open(saveDirectory + modelname + "_lineage.pickle", "wb") as f:
+        pickle.dump(dictLineage(raw, backwardLinks), f)
+
+    with open(saveDirectory + modelname + "_cellAge.pickle", "wb") as f:
+        pickle.dump(dictCellAge(raw), f)
+
+    with open(saveDirectory + modelname + "_growthRate.pickle", "wb") as f:
+        pickle.dump(dictGrowthRate(raw), f)
+
+    with open(saveDirectory + modelname + "_lifetime.pickle", "wb") as f:
+        pickle.dump(dictLifetime(raw), f)
+
+    with open(saveDirectory + modelname + "_startLength.pickle", "wb") as f:
+        pickle.dump(dictStartLength(raw), f)
+
+    with open(saveDirectory + modelname + "_endLength.pickle", "wb") as f:
+        pickle.dump(dictEndLength(raw), f)
+
+    with open(saveDirectory + modelname + "_avgElongationRate.pickle", "wb") as f:
+        pickle.dump(dictAvgElongationRate(raw), f)
+
+    with open(saveDirectory + modelname + "_raw.pickle", "wb") as f:
+        pickle.dump(raw, f)
+
+    with open(saveDirectory + modelname + "_backwardLinks.pickle", "wb") as f:
+        pickle.dump(backwardLinks, f)
+
+    with open(saveDirectory + modelname + "_step.pickle", "wb") as f:
+        pickle.dump(steps, f)
+
+    with open(saveDirectory + modelname + "_conjugant.pickle", "wb") as f:
+        pickle.dump(dictConj, f)
+
+    with open(saveDirectory + modelname + "_conjugantList.pickle", "wb") as f:
+        pickle.dump(firsts, f)
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        print("Expects 3 arguments: [csvfile] [folder to save into] [modelname]")
+    else:
+        saveAll(sys.argv[1], sys.argv[2], sys.argv[3])
+
