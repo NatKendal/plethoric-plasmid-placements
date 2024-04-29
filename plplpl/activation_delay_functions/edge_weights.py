@@ -1,4 +1,4 @@
-# specify the cdf, get the edge weights for colour
+# specify the cdf, get the edge weights for activation
 
 import math
 import numpy as np
