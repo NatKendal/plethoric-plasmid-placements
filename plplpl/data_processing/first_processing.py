@@ -478,6 +478,9 @@ def dictEndLength(raw):
 def dictAvgElongationRate(raw):
     return {cell:raw[cell]["avgElongationRate"] for cell in raw}
 
+def dictHumanFriendlyName(raw):
+    return {cell:str(raw[cell]["cellId"])+"_"+str(raw[cell]["step"]) for cell in raw}
+
 def saveAll(rawCSVfilename, saveDirectory, modelname):
     raw, cellsByStep = readFile(rawCSVfilename)
     dictConj, firsts = getConj(raw)
@@ -541,6 +544,9 @@ def saveAll(rawCSVfilename, saveDirectory, modelname):
 
     with open(saveDirectory + modelname + "_avgElongationRate.pickle", "wb") as f:
         pickle.dump(dictAvgElongationRate(raw), f)
+
+    with open(saveDirectory + modelname + "_humanFriendlyName.pickle", "wb") as f:
+        pickle.dump(dictHumanFriendlyName(raw), f)
 
     with open(saveDirectory + modelname + "_raw.pickle", "wb") as f:
         pickle.dump(raw, f)
