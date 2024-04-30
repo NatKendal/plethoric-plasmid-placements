@@ -296,6 +296,9 @@ def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExten
             pickle.dump(model, f)
 
     return model
-    
+
+
+#mb.addConjugationFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_colourDelayFunctionUniform_maturationDelayFunctionNormal", "functions/contactWeightsFixedNaive.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=mb.addDelayFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_None_None", "functions/colourDelayFunctionUniform.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=mb.addDelayFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_colourDelayFunctionUniform_None", "functions/maturationDelayFunctionNormal.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=mb.setupGraph("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", 10, 36, 4, 29, save=True, debug=1, progressBar=True))), saveConjugationFunction=False)
+
 
 # c23621_103

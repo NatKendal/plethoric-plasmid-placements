@@ -81,7 +81,7 @@ class BaseConjugationFunction(object):
         return 0
 
     def injectName(self, modelExtension):
-        return "_".join(modelExtension.split("_")[:self.nameIndex-1] + [self.name] + modelExtension.split("_")[self.nameIndex:])
+        return "_".join(modelExtension.split("_")[:self.nameIndex+1] + [self.name] + modelExtension.split("_")[self.nameIndex+2:])
     
     def save(self, filePath):
         with open(filePath, "wb") as f:
