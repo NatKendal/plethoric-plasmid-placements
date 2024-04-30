@@ -486,82 +486,113 @@ def saveAll(rawCSVfilename, saveDirectory, modelname):
     dictConj, firsts = getConj(raw)
     backwardLinks = dictBackwardLinks(raw, cellsByStep)
     steps = dictSteps(raw)
+    humanFriendlyName = dictHumanFriendlyName(raw)
+    uid = {name: uid for uid, name in humanFriendlyName.items()}
     os.makedirs(saveDirectory, exist_ok=True)
 
-    with open(saveDirectory + modelname + "_cellId.pickle", "wb") as f:
-        pickle.dump(dictCellId(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_cellId.pickle"):
+        with open(saveDirectory + modelname + "_cellId.pickle", "wb") as f:
+            pickle.dump(dictCellId(raw), f)
 
-    with open(saveDirectory + modelname + "_parent.pickle", "wb") as f:
-        pickle.dump(dictParent(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_parent.pickle"):
+        with open(saveDirectory + modelname + "_parent.pickle", "wb") as f:
+            pickle.dump(dictParent(raw), f)
 
-    with open(saveDirectory + modelname + "_position.pickle", "wb") as f:
-        pickle.dump(dictPosition(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_position.pickle"):
+        with open(saveDirectory + modelname + "_position.pickle", "wb") as f:
+            pickle.dump(dictPosition(raw), f)
 
-    with open(saveDirectory + modelname + "_width.pickle", "wb") as f:
-        pickle.dump(dictWidth(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_width.pickle"):
+        with open(saveDirectory + modelname + "_width.pickle", "wb") as f:
+            pickle.dump(dictWidth(raw), f)
 
-    with open(saveDirectory + modelname + "_length.pickle", "wb") as f:
-        pickle.dump(dictLength(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_length.pickle"):
+        with open(saveDirectory + modelname + "_length.pickle", "wb") as f:
+            pickle.dump(dictLength(raw), f)
 
-    with open(saveDirectory + modelname + "_ends.pickle", "wb") as f:
-        pickle.dump(dictEnds(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_ends.pickle"):
+        with open(saveDirectory + modelname + "_ends.pickle", "wb") as f:
+            pickle.dump(dictEnds(raw), f)
 
-    with open(saveDirectory + modelname + "_orientation.pickle", "wb") as f:
-        pickle.dump(dictOrientation(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_orientaton.pickle"):
+        with open(saveDirectory + modelname + "_orientation.pickle", "wb") as f:
+            pickle.dump(dictOrientation(raw), f)
 
-    with open(saveDirectory + modelname + "_growth.pickle", "wb") as f:
-        pickle.dump(dictGrowth(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_growth.pickle"):
+        with open(saveDirectory + modelname + "_growth.pickle", "wb") as f:
+            pickle.dump(dictGrowth(raw), f)
 
-    with open(saveDirectory + modelname + "_colours.pickle", "wb") as f:
-        pickle.dump(dictColours(raw, dictConj), f)
+    if not os.path.isfile(saveDirectory + modelname + "_colours.pickle"):
+        with open(saveDirectory + modelname + "_colours.pickle", "wb") as f:
+            pickle.dump(dictColours(raw, dictConj), f)
 
-    with open(saveDirectory + modelname + "_forwardLinks.pickle", "wb") as f:
-        pickle.dump(dictForwardLinks(raw, cellsByStep), f)
+    if not os.path.isfile(saveDirectory + modelname + "_forwardLinks.pickle"):
+        with open(saveDirectory + modelname + "_forwardLinks.pickle", "wb") as f:
+            pickle.dump(dictForwardLinks(raw, cellsByStep), f)
 
-    with open(saveDirectory + modelname + "_neighbours.pickle", "wb") as f:
-        pickle.dump(dictNeighbours(raw, cellsByStep), f)
+    if not os.path.isfile(saveDirectory + modelname + "_neighbours.pickle"):
+        with open(saveDirectory + modelname + "_neighbours.pickle", "wb") as f:
+            pickle.dump(dictNeighbours(raw, cellsByStep), f)
 
-    with open(saveDirectory + modelname + "_byStep.pickle", "wb") as f:
-        pickle.dump(dictByStep(steps), f)
+    if not os.path.isfile(saveDirectory + modelname + "_byStep.pickle"):
+        with open(saveDirectory + modelname + "_byStep.pickle", "wb") as f:
+            pickle.dump(dictByStep(steps), f)
 
-    with open(saveDirectory + modelname + "_lineage.pickle", "wb") as f:
-        pickle.dump(dictLineage(raw, backwardLinks), f)
+    if not os.path.isfile(saveDirectory + modelname + "_lineage.pickle"):
+        with open(saveDirectory + modelname + "_lineage.pickle", "wb") as f:
+            pickle.dump(dictLineage(raw, backwardLinks), f)
 
-    with open(saveDirectory + modelname + "_cellAge.pickle", "wb") as f:
-        pickle.dump(dictCellAge(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_cellAge.pickle"):
+        with open(saveDirectory + modelname + "_cellAge.pickle", "wb") as f:
+            pickle.dump(dictCellAge(raw), f)
 
-    with open(saveDirectory + modelname + "_growthRate.pickle", "wb") as f:
-        pickle.dump(dictGrowthRate(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_growthRate.pickle"):
+        with open(saveDirectory + modelname + "_growthRate.pickle", "wb") as f:
+            pickle.dump(dictGrowthRate(raw), f)
 
-    with open(saveDirectory + modelname + "_lifetime.pickle", "wb") as f:
-        pickle.dump(dictLifetime(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_lifetime.pickle"):
+        with open(saveDirectory + modelname + "_lifetime.pickle", "wb") as f:
+            pickle.dump(dictLifetime(raw), f)
 
-    with open(saveDirectory + modelname + "_startLength.pickle", "wb") as f:
-        pickle.dump(dictStartLength(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_startLength.pickle"):
+        with open(saveDirectory + modelname + "_startLength.pickle", "wb") as f:
+            pickle.dump(dictStartLength(raw), f)
 
-    with open(saveDirectory + modelname + "_endLength.pickle", "wb") as f:
-        pickle.dump(dictEndLength(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_endLength.pickle"):
+        with open(saveDirectory + modelname + "_endLength.pickle", "wb") as f:
+            pickle.dump(dictEndLength(raw), f)
 
-    with open(saveDirectory + modelname + "_avgElongationRate.pickle", "wb") as f:
-        pickle.dump(dictAvgElongationRate(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_avgElongationRate.pickle"):
+        with open(saveDirectory + modelname + "_avgElongationRate.pickle", "wb") as f:
+            pickle.dump(dictAvgElongationRate(raw), f)
 
-    with open(saveDirectory + modelname + "_humanFriendlyName.pickle", "wb") as f:
-        pickle.dump(dictHumanFriendlyName(raw), f)
+    if not os.path.isfile(saveDirectory + modelname + "_humanFriendlyName.pickle"):
+        with open(saveDirectory + modelname + "_humanFriendlyName.pickle", "wb") as f:
+            pickle.dump(humanFriendlyName, f)
 
-    with open(saveDirectory + modelname + "_raw.pickle", "wb") as f:
-        pickle.dump(raw, f)
+    if not os.path.isfile(saveDirectory + modelname + "_humanFriendlyNameLookup.pickle"):
+        with open(saveDirectory + modelname + "_humanFriendlyNameLookup.pickle", "wb") as f:
+            pickle.dump(uid, f)
 
-    with open(saveDirectory + modelname + "_backwardLinks.pickle", "wb") as f:
-        pickle.dump(backwardLinks, f)
+    if not os.path.isfile(saveDirectory + modelname + "_raw.pickle"):
+        with open(saveDirectory + modelname + "_raw.pickle", "wb") as f:
+            pickle.dump(raw, f)
 
-    with open(saveDirectory + modelname + "_step.pickle", "wb") as f:
-        pickle.dump(steps, f)
+    if not os.path.isfile(saveDirectory + modelname + "_backwardLinks.pickle"):
+        with open(saveDirectory + modelname + "_backwardLinks.pickle", "wb") as f:
+            pickle.dump(backwardLinks, f)
 
-    with open(saveDirectory + modelname + "_conjugant.pickle", "wb") as f:
-        pickle.dump(dictConj, f)
+    if not os.path.isfile(saveDirectory + modelname + "_step.pickle"):
+        with open(saveDirectory + modelname + "_step.pickle", "wb") as f:
+            pickle.dump(steps, f)
 
-    with open(saveDirectory + modelname + "_conjugantList.pickle", "wb") as f:
-        pickle.dump(firsts, f)
+    if not os.path.isfile(saveDirectory + modelname + "_conjugant.pickle"):
+        with open(saveDirectory + modelname + "_conjugant.pickle", "wb") as f:
+            pickle.dump(dictConj, f)
+
+    if not os.path.isfile(saveDirectory + modelname + "_conjugantList.pickle"):
+        with open(saveDirectory + modelname + "_conjugantList.pickle", "wb") as f:
+            pickle.dump(firsts, f)
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:

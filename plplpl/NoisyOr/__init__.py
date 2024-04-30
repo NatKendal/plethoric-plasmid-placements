@@ -5,5 +5,5 @@ from .NoisyOrBayesianNetwork import NoisyOrBayesianNetwork
 __all__ = [
     "NoisyOrFactor",
     "BinaryNoisyOrCPD",
-    "NoisyOrBayesianNetwork",
+    "NoisyOrBayesianNetwork"
 ]
