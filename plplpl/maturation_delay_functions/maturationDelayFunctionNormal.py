@@ -8,7 +8,6 @@ import numpy as np
 def calcCdfValues(avg=80, std=20, step_length = 5):
 
     # convert minutes to steps
-    # decrease min by one step so non-zero probability at the actual minimum
     avg = math.floor(avg/step_length) 
     std = math.ceil(std/step_length)
 
