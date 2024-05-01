@@ -5,7 +5,8 @@ import shapely.geometry as sg
 
 # input: endpoints of long axis as [[x1,y1],[x2,y2]], width of short axis
 # optionally epsilon to extend the box by (defaults to zero)
-# output: four corners of a bounding box
+# output: list with four corners of a bounding box, ordered for shapely
+# (top left, bottom left, bottom right, top right)
 def calcBox(endpoints, width, epsilon=0):
 
     x1 = endpoints[0][0]
@@ -30,22 +31,23 @@ def calcBox(endpoints, width, epsilon=0):
     dy = (width/2 + epsilon) * np.cos(angle)
 
     # find the corners - depends on relative position of endpoints
+    # order is top left, bottom left, bottom right, top right
     if y1 <= y2:
         c1 = [x1-dx, y1+dy]
         c2 = [x1+dx, y1-dy]
-        c3 = [x2-dx, y2+dy]
-        c4 = [x2+dx, y2-dy]
+        c3 = [x2+dx, y2-dy]
+        c4 = [x2-dx, y2+dy]
 
     else:
-        c1 = [x1-dx, y1-dy]
-        c2 = [x1+dx, y1+dy]
+        c1 = [x1+dx, y1+dy]
+        c2 = [x1-dx, y1-dy]
         c3 = [x2-dx, y2-dy]
         c4 = [x2+dx, y2+dy]
 
     return [c1,c2,c3,c4]
 
 # input: endpoints of long axis as [[x1,y1],[x2,y2]], epsilon to extend by
-# output: endpoints extended by epsilon along the long axis
+# output: endpoints extended by epsilon along the long axis in same form, with x1 <= x2
 def extendDonorEnds(endpoints, epsilon):
 
     x1 = endpoints[0][0]
@@ -81,7 +83,7 @@ def extendDonorEnds(endpoints, epsilon):
     return [e1,e2]
 
 # for the edge cell1 --> cell2
-# input: endpoints + widths of two cells to compare, epsilon to extend cell1 by
+# input: endpoints of long axes as [[x1,y1],[x2,y2]], widths of short axes, epsilon to extend cell1 by
 # output: 0 if cells do not overlap; 1 if they do
 def checkContact(endpoints1, width1, endpoints2, width2, epsilon=0.3):
 
@@ -89,8 +91,12 @@ def checkContact(endpoints1, width1, endpoints2, width2, epsilon=0.3):
     # get the corners of the rectangular portion, then add the ends
     corners1 = calcBox(endpoints1,width1,epsilon)
     ends = extendDonorEnds(endpoints1,epsilon)
-    corners1.extend(ends)
-    print(corners1)
+    
+    # since order of box corners is top left, bottom left, bottom right, top right
+    # and order of ends is left, right
+    # first end goes in second position (index 1) and second end goes in fifth position (index 4)
+    corners1.insert(1,ends[0])
+    corners1.insert(4,ends[1])
 
     # cell 2 is acting like recipient, so bound with rectangle
     corners2 = calcBox(endpoints2,width2)
@@ -115,8 +121,10 @@ def getContactArea(endpoints1, width1, endpoints2, width2, epsilon=0.3,tol=1e-3)
     # get the corners of the rectangular portion, then add the ends
     corners1 = calcBox(endpoints1,width1,epsilon)
     ends = extendDonorEnds(endpoints1,epsilon)
-    corners1.extend(ends)
-    print(corners1)
+    
+    # add the ends to the corners in the correct location to get a hexagon
+    corners1.insert(1,ends[0])
+    corners1.insert(4,ends[1])
 
     # cell 2 is acting like recipient, so bound with rectangle
     corners2 = calcBox(endpoints2,width2)
@@ -142,8 +150,10 @@ def getContactBoundary(endpoints1, width1, endpoints2, width2, epsilon=0.3,tol=1
     # get the corners of the rectangular portion, then add the ends
     corners1 = calcBox(endpoints1,width1,epsilon)
     ends = extendDonorEnds(endpoints1,epsilon)
-    corners1.extend(ends)
-    print(corners1)
+    
+    # add the ends to the corners in the correct location to get a hexagon
+    corners1.insert(1,ends[0])
+    corners1.insert(4,ends[1])
 
     # cell 2 is acting like recipient, so bound with rectangle
     corners2 = calcBox(endpoints2,width2)
@@ -153,6 +163,8 @@ def getContactBoundary(endpoints1, width1, endpoints2, width2, epsilon=0.3,tol=1
     p2 = sg.Polygon(corners2)
 
     boundary = p2.boundary
+    print(p1,p2)
+    print(boundary)
 
     result = p1.intersection(boundary).length
     
@@ -160,4 +172,10 @@ def getContactBoundary(endpoints1, width1, endpoints2, width2, epsilon=0.3,tol=1
         return 0
     else:
         return result
+    
+
+e1 = [[1,1],[2,1]]
+e2 = [[1.5,1.5],[2.5,1.5]]
+w = 1
+print(getContactBoundary(e1,w,e2,w))
     
