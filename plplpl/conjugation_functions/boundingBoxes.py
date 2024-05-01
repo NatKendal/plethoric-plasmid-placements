@@ -172,10 +172,5 @@ def getContactBoundary(endpoints1, width1, endpoints2, width2, epsilon=0.3,tol=1
         return 0
     else:
         return result
-    
-
-e1 = [[1,1],[2,1]]
-e2 = [[1.5,1.5],[2.5,1.5]]
-w = 1
-print(getContactBoundary(e1,w,e2,w))
+ 
     
