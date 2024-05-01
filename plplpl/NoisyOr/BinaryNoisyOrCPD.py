@@ -1,3 +1,5 @@
+import numpy as np
+
 from pgmpy import config
 from pgmpy.factors.discrete import TabularCPD
 from pgmpy.global_vars import logger
@@ -61,7 +63,7 @@ class BinaryNoisyOrCPD(TabularCPD):
         # Setup evidence.
         self.evidence = evidence
         self.variables.extend(evidence)
-        self.cardinality.extend([2]*len(evidence))
+        self.cardinality = np.array([2]*(len(evidence) + 1))
         self.evidence_noise = evidence_noise
 
         # Setup maximum table size.
@@ -115,7 +117,7 @@ class BinaryNoisyOrCPD(TabularCPD):
     # Will fail if it would calculate more than self.maxTableSize values.
     # Should print in appropriate pgmpy format. #TODO check this
     def get_values(self):
-        if np.prod(self.cardinalities) > self.maxTableSize:
+        if np.prod(self.cardinality) > self.maxTableSize:
             raise Exception("Table too large to compute.")
         values = []
         for assignment in itertools.product(*[range(card) for card in self.cardinality]):

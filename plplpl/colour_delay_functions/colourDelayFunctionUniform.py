@@ -2,6 +2,9 @@
 
 import math
 import numpy as np
+import pathlib
+
+from plplpl.base_functions import BaseDelayFunction
 
 # input: minimum and maximum of range in minutes, step length
 # output: dictionary of uniform distribution values for all time steps in the range 
@@ -61,3 +64,13 @@ def getColourWeights(time, edge_vals, step_length = 5):
     
     else:
         return edge_vals[time]
+
+class ColourDelayFunctionUniform(BaseDelayFunction):
+    def __init__(self):
+        min_val = 50
+        max_val = 180
+        step_length = 5
+        cdf_vals = calcCdfValues(min_val=min_val, max_val=max_val, step_length=step_length)
+        edge_vals = calcColourWeights(cdf_vals)
+        super().__init__("colourDelayFunctionUniform", 1, ["c"], {"colour_min":(min_val//step_length), "colour_max":(max_val//step_length)}, min_val//step_length, max_val//step_length, edge_vals)
+

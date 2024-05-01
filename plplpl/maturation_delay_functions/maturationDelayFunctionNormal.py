@@ -2,12 +2,16 @@
 
 import math
 import numpy as np
+import pathlib
+
+from plplpl.base_functions import BaseDelayFunction
 
 # input: average and standard deviation in minutes, step length
 # output: dictionary of normal distribution values for all time steps in 3x standard deviation
 def calcCdfValues(avg=80, std=20, step_length = 5):
 
     # convert minutes to steps
+    # decrease min by one step so non-zero probability at the actual minimum
     avg = math.floor(avg/step_length) 
     std = math.ceil(std/step_length)
 
@@ -64,3 +68,10 @@ def getMaturationWeights(time, edge_vals, step_length = 5):
     
     else:
         return edge_vals[time]
+
+class MaturationDelayFunctionNormal(BaseDelayFunction):
+    def __init__(self):
+        cdf_vals = calcCdfValues()
+        edge_vals = calcMaturationWeights(cdf_vals)
+        edge_vals[29] = 1.0
+        super().__init__("maturationDelayFunctionNormal", 2, ["m"], {"maturation_min":4, "maturation_max":29}, 4, 29, edge_vals)

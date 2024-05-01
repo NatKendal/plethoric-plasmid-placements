@@ -1,3 +1,7 @@
+import pathlib
+
+from plplpl.base_functions import BaseConjugationFunction
+
 # determining the quality of contact between cells
 
 # input: list of all cells, dictionary of all neighbours, later will include other info
@@ -18,3 +22,10 @@ def getContactWeights(all_cells, dictNeighbours):
 # output: weight of edge from first cell to second cell
 def calcWeight(cell1,cell2):
     return 1/1000
+
+class ContactWeightsFixedNaive(BaseConjugationFunction):
+    def __init__(self):
+        super().__init__("contactWeightsFixedNaive", 0, ["g"], [])
+
+    def weight(self, cell1, cell2, debug=0, **kwargs):
+        return 1/1000
