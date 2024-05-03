@@ -18,7 +18,7 @@ def readFile(filename):
     raw = dict()
 
     # and a dictionary containing cells in each time step
-    # each cell is a list [cell, unique]
+    # each cell is a tuple (cell, unique)
     cellsByStep = dict()
 
     # keep track of the row -- starts at 2 because header
@@ -42,7 +42,8 @@ def readFile(filename):
             if step in cellsByStep.keys():
                 cellsByStep[step].append((cellId, currentRow))
             else:
-                cellsByStep[step] = [(cellId,currentRow)]
+                cellsByStep[step] = []
+                cellsByStep[step].append((cellId,currentRow))
 
             # then, add everything to the main dictionary
             raw[currentRow] = {
@@ -121,7 +122,7 @@ def redOrGreen(rfp, gfp):
 def getConj(raw):
 
     # stores all seen transconjugant cell id
-    known = []
+    known = set()
 
     # stores uid of all first transconjugants
     firsts = []
@@ -149,13 +150,13 @@ def getConj(raw):
         # in this case it divided but was not a first
         # does need to be added
         elif raw[cell]['parentCellId'] in known:
-            known.append(raw[cell]['cellId'])
+            known.add(raw[cell]['cellId'])
             status = 2
 
         # check if flagged, and not yet known
         # this would be a first, add uid to that list
         elif raw[cell]['flag'] == 1:
-            known.append(raw[cell]['cellId'])
+            known.add(raw[cell]['cellId'])
             firsts.append(cell)
             status = 2
 
@@ -368,7 +369,6 @@ def dictForwardLinks(raw, cellsByStep):
         # check if the cell id exists in the previous time frame
         # or if the parent id exists
         # if it does, current cell is the forward link/child of that cell
-        found = False
         for item in cellsByStep[step-1]:
             if item[0] == raw[cell]['cellId']:
                 forwardLinks[item[1]].append(cell)
