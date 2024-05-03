@@ -291,25 +291,6 @@ def dictGrowth(raw):
 
     return growth
 
-# input: raw data, dictionary of transconjugants
-# output: dictionary mapping each uid to cell colour
-# 0 for donor cell, 1 for recipient cell, 2 is transconjugant
-def dictColours(raw, dictConj):
-
-    colours = dict()
-
-    for cell in raw.keys():
-
-        # check if it is a transconjugant first
-        if dictConj[cell] == 2:
-            colours[cell] = 2
-
-        # otherwise check if red or green
-        else:
-            colours[cell] = redOrGreen(raw[cell]['rfp'], raw[cell]['gfp'])
-
-    return colours
-
 # input: raw data, cellsByStep
 # output: dict of uid to uid of past track/parent link
 # no distinction between parent/self 
@@ -434,6 +415,50 @@ def dictByStep(dictSteps):
             byStep[step] = [cell]
 
     return byStep
+
+# input: raw data, backward links, cells in each step
+# output: dictionary mapping each uid to cell colour
+# 0 for donor cell, 1 for recipient cell, 2 is transconjugant
+def dictColours(raw, backwardLinks, byStep):
+
+    colours = dict()
+
+    # go forwards by step so that parents are always assigned colours first
+    steps = list(byStep.keys())
+    steps.sort()
+
+    for step in steps:
+        for cell in byStep[step]:
+
+            parent = backwardLinks[cell]
+
+            # see if the parent has a colour assigned
+            if parent in colours.keys():
+
+                # if it is red (0) or yellow (2), so is the cell
+                if colours[parent] == 0:
+                    colours[cell] = 0
+                elif colours[parent] == 2:
+                    colours[cell] = 2
+
+                # if green (1) check first if it is flagged
+                # otherwise stays green
+                else:
+                    if raw[cell]['flag'] == 1:
+                        colours[cell] = 2
+                    else:
+                        colours[cell] = 1
+
+            # if no parent, check the colour, first looking for flags
+            else:
+                if raw[cell]['flag'] == 1:
+                    colours[cell] = 2
+
+                else:
+                    colours[cell] = redOrGreen(rfp=raw[cell]['rfp'],gfp=raw[cell]['gfp'])
+
+    return colours
+
 
 # input: raw data, dictBackwardLinks
 # output: dict of uid to lineages (uid of first cell in lineage)
