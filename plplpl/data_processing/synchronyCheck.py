@@ -1,5 +1,7 @@
 # for checking if pairs of siblings / sets of cousins light up at the same time
 
+TOLERANCE = 2
+
 # input: dictionary of cells per step, colours, forward links; list of first conjugation events
 # output: dictionary of uid --> list representing how many descendants became transconjugants, and when
 # [] = yellow and not first, -1 entry = descendant that never lit up
@@ -63,3 +65,49 @@ def getSynchrony(byStep,colours,forwardLinks,firsts):
 
     return synchrony
 
+
+# input: list of all cells; dictionary of colours, forward links, synchrony;
+# tolerance for disparity in siblings/cousins
+# output: set of uid of green (recipient) cells which divide in next step and must have the gene
+# may be more than one per lineage
+def checkGeneGuarantee(allCells,colours,forwardLinks,synchrony,tol=TOLERANCE):
+
+    # create the set
+    certain = set()
+
+    # order is irrelevant, so go through all cells
+    for cell in allCells:
+
+        # red cells will not be in the dictionary, so skip them
+        if colours[cell] == 0:
+            continue
+
+        # cells with <= 1 item in their list won't give certainty, skip
+        if len(synchrony[cell]) <= 1:
+            continue
+
+        # only can be certain for the cell right before division
+        # so we only want to check ones with at least two forward links
+        if len(forwardLinks[cell]) > 1:
+
+            # check the min and max, difference must be no more than tolerance
+            min_val = min(synchrony[cell])
+            max_val = max(synchrony[cell])
+            diff = max_val - min_val
+
+            if diff <= tol:
+                certain.add(cell)
+
+    return certain
+            
+# input: uid of certain cells; dictionary of colours and forward links
+# output: set of uid of all green cells guaranteed to have the gene
+def getGeneCertainty(certain,colours,forwardLinks):
+
+    allCertain = certain
+
+    # for each certain cell, track down its lineage until the cell becomes yellow 
+    # or splits into two cells
+    # or the lineage ends 
+
+    return 0
