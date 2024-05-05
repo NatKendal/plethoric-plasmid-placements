@@ -85,7 +85,7 @@ def readFile(filename):
     return raw, cellsByStep
 
 # ------------------------------------------------------------------
-### Functions for processing the data 
+### Functions for colour
 # ------------------------------------------------------------------
 
 # input: gfp and rfp values for one cell
@@ -116,54 +116,26 @@ def redOrGreen(rfp, gfp):
     else:
         return 0
 
-# input: all data
-# output: dict of all transconjugants, list of first transconjugants
-# -1 for not conjugant, 2 for conjugant (not reusing 0/1 to avoid errors)
-def getConj(raw):
+# input: byStep, raw
+# output: dictionary mapping uid to cell colour, list of transconjugants in frame 1
+# 0 = red = donor, 1 = green = recipient, 2 = yellow = transconjugant
+def firstFrameColour(byStep,raw):
 
-    # stores all seen transconjugant cell id
-    known = set()
+    firstColours = dict()
 
-    # stores uid of all first transconjugants
-    firsts = []
+    transconjugants = []
 
-    # dictionary we want
-    dictConj = dict()
+    # first step 
+    for cell in byStep[1]:
 
-    # sort the keys, just in case
-    orderedCells = list(raw.keys())
-    orderedCells.sort()
+        if raw[cell]['flag'] == 1:
+            firstColours[cell] = 2
+            transconjugants.append(cell)
 
-    # check each row to see if it is flagged
-    # we sort it to make sure iwe go forward in time
-    for cell in orderedCells:
+        else:
+            firstColours[cell] = redOrGreen(rfp=raw[cell]['rfp'],gfp=raw[cell]['gfp'])
 
-        # checks
-        status = -1
-
-        # check if its cell Id is already there
-        # in this case it is not a first, nor does it need to be added
-        if raw[cell]['cellId'] in known:
-            status = 2
-
-        # check if parent cell Id is there
-        # in this case it divided but was not a first
-        # does need to be added
-        elif raw[cell]['parentCellId'] in known:
-            known.add(raw[cell]['cellId'])
-            status = 2
-
-        # check if flagged, and not yet known
-        # this would be a first, add uid to that list
-        elif raw[cell]['flag'] == 1:
-            known.add(raw[cell]['cellId'])
-            firsts.append(cell)
-            status = 2
-
-        # add the dictionary entry
-        dictConj[cell] = status
-
-    return dictConj, firsts
+    return firstColours, transconjugants
     
 # ------------------------------------------------------------------
 ### Actual Dictionary Outputs
@@ -171,108 +143,43 @@ def getConj(raw):
 
 # input: raw data
 # output: dict of uid to time step
-# no changes to data
 def dictSteps(raw):
-
-    step = dict()
-
-    for cell in raw.keys():
-
-        step[cell] = raw[cell]['step']
-
-    return step
+    return {cell:raw[cell]["step"] for cell in raw}
 
 # input: raw data
 # output: dict of uid to cell id
-# no changes to data
 def dictCellId(raw):
-
-    cellId = dict()
-
-    for cell in raw.keys():
-
-        cellId[cell] = raw[cell]['cellId']
-
-    return cellId
+    return {cell:raw[cell]["cellId"] for cell in raw}
 
 # input: raw data
 # output: dict of uid to parent Cell Id
-# no changes to data
 def dictParent(raw):
-
-    parent = dict()
-
-    for cell in raw.keys():
-
-        parent[cell] = raw[cell]['parentCellId']
-
-    return parent
+    return {cell:raw[cell]["parentCellId"] for cell in raw}
 
 # input: raw data
 # output: dict of uid to positions
-# no changes to data
 def dictPosition(raw):
-
-    position = dict()
-
-    for cell in raw.keys():
-
-        position[cell] = raw[cell]['position']
-
-    return position
+    return {cell:raw[cell]["position"] for cell in raw}
 
 # input: raw data
 # output: dict of uid to widths
-# no changes to data
 def dictWidth(raw):
-
-    width = dict()
-
-    for cell in raw.keys():
-
-        width[cell] = raw[cell]['width']
-
-    return width
+    return {cell:raw[cell]["width"] for cell in raw}
 
 # input: raw data
 # output: dict of uid to length
-# no changes to data
 def dictLength(raw):
-
-    length = dict()
-
-    for cell in raw.keys():
-
-        length[cell] = raw[cell]['length']
-
-    return length
+    return {cell:raw[cell]["length"] for cell in raw}
 
 # input: raw data
 # output: dict of uid to ends
-# no changes to data
 def dictEnds(raw):
-
-    ends = dict()
-
-    for cell in raw.keys():
-
-        ends[cell] = raw[cell]['ends']
-
-    return ends
-
+    return {cell:raw[cell]["ends"] for cell in raw}
 
 # input: raw data
 # output: dict of uid to ends
-# no changes to data
 def dictOrientation(raw):
-
-    orientation = dict()
-
-    for cell in raw.keys():
-
-        orientation[cell] = raw[cell]['orientation']
-
-    return orientation
+    return {cell:raw[cell]["orientation"] for cell in raw}
 
 # input: raw data
 # output: dict of uid to growth rates
@@ -282,10 +189,8 @@ def dictGrowth(raw):
     growth = dict()
 
     for cell in raw.keys():
-
         if raw[cell]['elongationRate'] < 0:
-            growth[cell] = -1
-        
+            growth[cell] = -1  
         else:
             growth[cell] = raw[cell]['elongationRate']
 
@@ -296,7 +201,8 @@ def dictGrowth(raw):
 # no distinction between parent/self 
 def dictBackwardLinks(raw,cellsByStep):
 
-    backwardLinks = dict()
+    # initalize to no backward link
+    backwardLinks = {uid: -1 for uid in raw.keys()}
 
     for cell in raw.keys():
 
@@ -321,12 +227,7 @@ def dictBackwardLinks(raw,cellsByStep):
                 for item in cellsByStep[step-1]:
                     if item[0] == raw[cell]['parentCellId']:
                         backwardLinks[cell] = item[1]
-                        found = True
                         break
-
-            # if we also did not find a parent, error, set to -1
-            if not found:
-                backwardLinks[cell] = -1
 
     return backwardLinks
 
@@ -361,41 +262,6 @@ def dictForwardLinks(raw, cellsByStep):
 
     return forwardLinks
 
-# input: raw data, cellsByStep
-# output: dict of uid to all potential neighbours 
-def dictNeighbours(raw, cellsByStep, maxDistance=MAX_DISTANCE):
-
-    # initialize to no neighbours
-    neighbours = {uid: [] for uid in raw.keys()}
-
-    # we find neighbors for each time step
-    for step in cellsByStep.keys():
-
-        # list of uid of cells not yet checked in step
-        # second element in each item is the cell uid
-        toCheck = [item[1] for item in cellsByStep[step]]
-
-        # double loop - compare each cell against every other
-        for cell1 in toCheck:
-
-            # no need to compare against self / to ever check it later
-            toCheck.remove(cell1)
-
-            # check against all remaining cells
-            for cell2 in toCheck:
-
-                distance = math.dist(raw[cell1]['position'], raw[cell2]['position'])
-
-                # potential neighbours must be within 5 cell lengths (5 microns each)
-                # this is a quarter of the trap... maybe we should start smaller...
-                if distance <= maxDistance:
-
-                    # symmetric relation so add to both
-                    neighbours[cell1].append(cell2)
-                    neighbours[cell2].append(cell1)
-
-    return neighbours
-
 # input: dictSteps
 # output: dictionary of time step to list of uid of cells in that step
 def dictByStep(dictSteps):
@@ -416,12 +282,48 @@ def dictByStep(dictSteps):
 
     return byStep
 
-# input: raw data, backward links, cells in each step
-# output: dictionary mapping each uid to cell colour
+# input: raw data, byStep
+# output: dict of uid to all potential neighbours 
+def dictNeighbours(raw, byStep, maxDistance=MAX_DISTANCE):
+
+    # initialize to no neighbours
+    neighbours = {uid: [] for uid in raw.keys()}
+
+    # we find neighbors for each time step
+    for step in byStep.keys():
+
+        # list of uid of cells not yet checked in step
+        # second element in each item is the cell uid
+        toCheck = [item for item in byStep[step]]
+
+        # double loop - compare each cell against every other
+        for cell1 in toCheck:
+
+            # no need to compare against self / to ever check it later
+            toCheck.remove(cell1)
+
+            # check against all remaining cells
+            for cell2 in toCheck:
+
+                distance = math.dist(raw[cell1]['position'], raw[cell2]['position'])
+
+                # potential neighbours must be within maxDistance
+                # this is a quarter of the trap... maybe we should start smaller...
+                if distance <= maxDistance:
+
+                    # symmetric relation so add to both
+                    neighbours[cell1].append(cell2)
+                    neighbours[cell2].append(cell1)
+
+    return neighbours
+
+# input: raw data, backward links, cells in each step; dictionary of colours for first step
+# output: dictionary mapping each uid to cell colour, list of first transconjugants
 # 0 for donor cell, 1 for recipient cell, 2 is transconjugant
 def dictColours(raw, backwardLinks, byStep):
 
-    colours = dict()
+    # we start with the dictionary of colours for the first step
+    colours, firsts = firstFrameColour(byStep,raw)
 
     # go forwards by step so that parents are always assigned colours first
     steps = list(byStep.keys())
@@ -430,34 +332,38 @@ def dictColours(raw, backwardLinks, byStep):
     for step in steps:
         for cell in byStep[step]:
 
-            parent = backwardLinks[cell]
+            previous = backwardLinks[cell]
 
-            # see if the parent has a colour assigned
-            if parent in colours.keys():
+            # see if the previous cell (self or parent) has a colour assigned
+            if previous in colours.keys():
 
                 # if it is red (0) or yellow (2), so is the cell
-                if colours[parent] == 0:
+                if colours[previous] == 0:
                     colours[cell] = 0
-                elif colours[parent] == 2:
+                elif colours[previous] == 2:
                     colours[cell] = 2
 
                 # if green (1) check first if it is flagged
+                # if flagged, colour is 2 and is a first
                 # otherwise stays green
                 else:
                     if raw[cell]['flag'] == 1:
                         colours[cell] = 2
+                        firsts.append(cell)
                     else:
                         colours[cell] = 1
 
-            # if no parent, check the colour, first looking for flags
+            # if no previous cell, check the colour, first looking for flags
+            # if transconjugant, necessarily the first in its lineage
             else:
                 if raw[cell]['flag'] == 1:
                     colours[cell] = 2
+                    firsts.append(cell)
 
                 else:
                     colours[cell] = redOrGreen(rfp=raw[cell]['rfp'],gfp=raw[cell]['gfp'])
 
-    return colours
+    return colours, firsts
 
 
 # input: raw data, dictBackwardLinks
@@ -508,9 +414,10 @@ def dictHumanFriendlyName(raw):
 
 def saveAll(rawCSVfilename, saveDirectory, modelname):
     raw, cellsByStep = readFile(rawCSVfilename)
-    dictConj, firsts = getConj(raw)
     backwardLinks = dictBackwardLinks(raw, cellsByStep)
     steps = dictSteps(raw)
+    byStep = dictByStep(steps)
+    colours, firsts = dictColours(raw,backwardLinks,byStep)
     humanFriendlyName = dictHumanFriendlyName(raw)
     uid = {name: uid for uid, name in humanFriendlyName.items()}
     os.makedirs(saveDirectory, exist_ok=True)
@@ -549,7 +456,7 @@ def saveAll(rawCSVfilename, saveDirectory, modelname):
 
     if not os.path.isfile(saveDirectory + modelname + "_colours.pickle"):
         with open(saveDirectory + modelname + "_colours.pickle", "wb") as f:
-            pickle.dump(dictColours(raw, dictConj), f)
+            pickle.dump(colours, f)
 
     if not os.path.isfile(saveDirectory + modelname + "_forwardLinks.pickle"):
         with open(saveDirectory + modelname + "_forwardLinks.pickle", "wb") as f:
@@ -557,11 +464,11 @@ def saveAll(rawCSVfilename, saveDirectory, modelname):
 
     if not os.path.isfile(saveDirectory + modelname + "_neighbours.pickle"):
         with open(saveDirectory + modelname + "_neighbours.pickle", "wb") as f:
-            pickle.dump(dictNeighbours(raw, cellsByStep), f)
+            pickle.dump(dictNeighbours(raw, byStep), f)
 
     if not os.path.isfile(saveDirectory + modelname + "_byStep.pickle"):
         with open(saveDirectory + modelname + "_byStep.pickle", "wb") as f:
-            pickle.dump(dictByStep(steps), f)
+            pickle.dump(byStep, f)
 
     if not os.path.isfile(saveDirectory + modelname + "_lineage.pickle"):
         with open(saveDirectory + modelname + "_lineage.pickle", "wb") as f:
@@ -610,10 +517,6 @@ def saveAll(rawCSVfilename, saveDirectory, modelname):
     if not os.path.isfile(saveDirectory + modelname + "_step.pickle"):
         with open(saveDirectory + modelname + "_step.pickle", "wb") as f:
             pickle.dump(steps, f)
-
-    if not os.path.isfile(saveDirectory + modelname + "_conjugant.pickle"):
-        with open(saveDirectory + modelname + "_conjugant.pickle", "wb") as f:
-            pickle.dump(dictConj, f)
 
     if not os.path.isfile(saveDirectory + modelname + "_conjugantList.pickle"):
         with open(saveDirectory + modelname + "_conjugantList.pickle", "wb") as f:
