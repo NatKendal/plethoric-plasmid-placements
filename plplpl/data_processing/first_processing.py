@@ -323,7 +323,7 @@ def dictNeighbours(raw, byStep, maxDistance=MAX_DISTANCE):
 def dictColours(raw, backwardLinks, byStep, firstFrame=None):
 
     # if manual first frame provided, use it
-    if firstFrame:
+    if firstFrame is not None:
         colours, firsts = firstFrame
 
     # otherwise, we start calculate with the function
