@@ -119,7 +119,7 @@ def redOrGreen(rfp, gfp):
 # input: byStep, raw
 # output: dictionary mapping uid to cell colour, list of transconjugants in frame 1
 # 0 = red = donor, 1 = green = recipient, 2 = yellow = transconjugant
-def firstFrameColour(byStep,raw):
+def getFirstFrameColour(byStep,raw):
 
     firstColours = dict()
 
@@ -320,10 +320,15 @@ def dictNeighbours(raw, byStep, maxDistance=MAX_DISTANCE):
 # input: raw data, backward links, cells in each step; dictionary of colours for first step
 # output: dictionary mapping each uid to cell colour, list of first transconjugants
 # 0 for donor cell, 1 for recipient cell, 2 is transconjugant
-def dictColours(raw, backwardLinks, byStep):
+def dictColours(raw, backwardLinks, byStep, firstFrame=None):
 
-    # we start with the dictionary of colours for the first step
-    colours, firsts = firstFrameColour(byStep,raw)
+    # if manual first frame provided, use it
+    if firstFrame:
+        colours, firsts = firstFrame
+
+    # otherwise, we start calculate with the function
+    else:
+        colours, firsts = getFirstFrameColour(byStep,raw)
 
     # go forwards by step so that parents are always assigned colours first
     steps = list(byStep.keys())
