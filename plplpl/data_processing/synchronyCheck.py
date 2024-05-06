@@ -1,5 +1,7 @@
 # for checking if pairs of siblings / sets of cousins light up at the same time
 
+import pickle
+
 TOLERANCE = 2
 
 # input: dictionary of cells per step, colours, forward links; list of first conjugation events
@@ -70,7 +72,7 @@ def getSynchrony(byStep,colours,forwardLinks,firsts):
 # tolerance for disparity in siblings/cousins
 # output: set of uid of green (recipient) cells which divide in next step and must have the gene
 # may be more than one per lineage
-def checkGeneGuarantee(allCells,colours,forwardLinks,synchrony,tol=TOLERANCE):
+def getFirstCertain(allCells,colours,forwardLinks,synchrony,tol=TOLERANCE):
 
     # create the set
     certain = set()
@@ -100,9 +102,40 @@ def checkGeneGuarantee(allCells,colours,forwardLinks,synchrony,tol=TOLERANCE):
 
     return certain
             
-# input: uid of certain cells; dictionary byStep and forward links
+# input: uid of certain cells; dictionary of colours and forward links
+# output: list of uid of all green cells guaranteed to have the gene
+def getAllGreenCertain(certain,colours,forwardLinks):
+
+    allCertain = certain
+
+    # for each certain cell, track down its lineage until the cell becomes yellow 
+    # or splits into two cells (that parent will already be in certain)
+    # or the lineage ends 
+    for cell in certain:
+        for child in forwardLinks[cell]:
+
+            current = child
+            next = True
+
+            while next:
+                # first check the colour - green added to allCertain, otherwise stop
+                if colours[current] == 1:
+                    certain.add(child)
+                else:
+                    next = False
+
+                # if it has no forward links or too many, stop
+                # otherwise take the one link as the new current cell
+                if len(forwardLinks[current] != 1):
+                    next = False
+                else: 
+                    current = forwardLinks[current][0]
+
+    return list(allCertain)
+
+# input: uid of certain cells; dictionary byStep and backward links
 # output: list of all cells guaranteed to have the gene
-def getGeneCertainty(certain,byStep,backwardLinks):
+def getAllCertain(certain,byStep,backwardLinks):
 
     allCertain = certain
 
@@ -118,3 +151,41 @@ def getGeneCertainty(certain,byStep,backwardLinks):
 
     return list(allCertain)
 
+def saveSynchronyCertaintyToModel(dataFolder, modelName, save=True):
+
+    # get all the relevant dictionaries
+    with open(dataFolder + modelName + "_byStep.pickle", "rb") as f:
+        byStep = pickle.load(f)
+
+    with open(dataFolder + modelName + "_colours.pickle", "rb") as f:
+        colours = pickle.load(f)
+
+    with open(dataFolder + modelName + "_backwardLinks.pickle", "rb") as f:
+        backwardLinks = pickle.load(f)
+
+    with open(dataFolder + modelName + "_forwardLinks.pickle", "rb") as f:
+        forwardLinks = pickle.load(f)
+
+    with open(dataFolder + modelName + "_firsts.pickle", "rb") as f:
+        firsts = pickle.load(f)
+
+    # Save the list of unique cell ids for later.
+    cells = list(colours.keys())
+
+    synchrony = getSynchrony(byStep,colours,forwardLinks,firsts)
+
+    certain = getFirstCertain(cells,colours,forwardLinks,synchrony,tol=TOLERANCE)
+
+    allGreenCertain = getAllGreenCertain(certain,colours,forwardLinks)
+
+    if save:
+        with open(dataFolder + modelName + "_synchrony.pickle", "wb") as f:
+            pickle.dump(allGreenCertain, f)
+
+    return allGreenCertain
+
+
+
+
+   
+    
