@@ -6,21 +6,25 @@ import pathlib
 
 from plplpl.base_functions import BaseDelayFunction
 
-# input: minimum and maximum of range in minutes, step length
-# output: dictionary of uniform distribution values for all time steps in the range 
-def calcCdfValues(min_val=50, max_val=180, step_length = 5):
+# input: average and standard deviation in minutes, step length
+# output: dictionary of normal distribution values for all time steps in 3x standard deviation
+def calcCdfValues(avg=110, std=25, step_length = 5):
 
     # convert minutes to steps
     # decrease min by one step so non-zero probability at the actual minimum
-    # probability will be equal one at max
-    min_val = math.floor(min_val/step_length) - 1
-    max_val = math.ceil(max_val/step_length)
+    avg = math.floor(avg/step_length) 
+    std = math.ceil(std/step_length)
+
+    min_val = avg - 3 * std 
+    max_val = avg + 3 * std 
+
+    assert min_val > 0, "minimum maturation time is less than 0"
 
     cdf_vals = dict()
 
     for i in range(min_val, max_val+1):
 
-        cdf_vals[i] = (i - min_val) / (max_val - min_val)
+        cdf_vals[i] = 0.5 * (1 + math.erf( (i - avg) / (std * math.sqrt(2))))
 
     return cdf_vals, min_val, max_val
 
@@ -65,9 +69,10 @@ def getColourWeights(time, edge_vals, step_length = 5):
     else:
         return edge_vals[time]
 
-class ColourDelayFunctionUniform(BaseDelayFunction):
+class ColourDelayFunctionNormal(BaseDelayFunction):
     def __init__(self):
         cdf_vals, min_val, max_val = calcCdfValues()
         edge_vals = calcColourWeights(cdf_vals)
-        super().__init__("colourDelayFunctionUniform", 1, ["c"], {"colour_min":(min_val), "colour_max":(max_val)}, min_val, max_val, edge_vals)
+        edge_vals[max_val] = 1.0
+        super().__init__("colourDelayFunctionNormal", 1, ["c"], {"maturation_min":min_val, "maturation_max":max_val}, min_val, max_val, edge_vals)
 

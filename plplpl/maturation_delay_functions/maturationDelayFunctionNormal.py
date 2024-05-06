@@ -26,7 +26,7 @@ def calcCdfValues(avg=80, std=20, step_length = 5):
 
         cdf_vals[i] = 0.5 * (1 + math.erf( (i - avg) / (std * math.sqrt(2))))
 
-    return cdf_vals
+    return cdf_vals, min_val, max_val
 
 # input: dictionary of cdf values
 # output: dictionary of edge weights
@@ -71,7 +71,7 @@ def getMaturationWeights(time, edge_vals, step_length = 5):
 
 class MaturationDelayFunctionNormal(BaseDelayFunction):
     def __init__(self):
-        cdf_vals = calcCdfValues()
+        cdf_vals, min_val, max_val = calcCdfValues()
         edge_vals = calcMaturationWeights(cdf_vals)
         edge_vals[29] = 1.0
-        super().__init__("maturationDelayFunctionNormal", 2, ["m"], {"maturation_min":4, "maturation_max":29}, 4, 29, edge_vals)
+        super().__init__("maturationDelayFunctionNormal", 2, ["m"], {"maturation_min":min_val, "maturation_max":max_val}, min_val, max_val, edge_vals)
