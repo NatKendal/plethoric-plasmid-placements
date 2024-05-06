@@ -73,5 +73,5 @@ class MaturationDelayFunctionNormal(BaseDelayFunction):
     def __init__(self):
         cdf_vals, min_val, max_val = calcCdfValues()
         edge_vals = calcMaturationWeights(cdf_vals)
-        edge_vals[29] = 1.0
+        edge_vals[max_val] = 1.0
         super().__init__("maturationDelayFunctionNormal", 2, ["m"], {"maturation_min":min_val, "maturation_max":max_val}, min_val, max_val, edge_vals)
