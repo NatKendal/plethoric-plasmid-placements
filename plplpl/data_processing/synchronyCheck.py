@@ -107,7 +107,26 @@ def getGeneCertainty(certain,colours,forwardLinks):
     allCertain = certain
 
     # for each certain cell, track down its lineage until the cell becomes yellow 
-    # or splits into two cells
+    # or splits into two cells (that parent will already be in certain)
     # or the lineage ends 
+    for cell in certain:
+        for child in forwardLinks[cell]:
 
-    return 0
+            current = child
+            next = True
+
+            while next:
+                # first check the colour - green added to allCertain, otherwise stop
+                if colours[current] == 1:
+                    certain.add(child)
+                else:
+                    next = False
+
+                # if it has no forward links or too many, stop
+                # otherwise take the one link as the new current cell
+                if len(forwardLinks[current] != 1):
+                    next = False
+                else: 
+                    current = forwardLinks[current][0]
+
+    return allCertain
