@@ -60,6 +60,8 @@ def setupGraph(modelFolder, dataFolder, modelName, colour_min, colour_max, matur
         model.add_nodes_from(["g"+name[cell], "c"+name[cell], "m"+name[cell]])
         if debug >= 2:
             print("Added cell " + name[cell])
+        if progressBar:
+            iterator.set_description(desc="Adding " + cell)
 
     # Add edges to the graph.
     # First: get the children of a cell, either true children or itself at the next timestep.
@@ -80,6 +82,8 @@ def setupGraph(modelFolder, dataFolder, modelName, colour_min, colour_max, matur
         iterable = cells
     # Add the edges, one cell at a time.
     for cell in iterable:
+        if progressBar:
+            iterator.set_description(desc="Adding edges to " + cell)
         # First: add the simple downward edges. (g -> g, c -> c, m -> m)
         for child in forwardLinks[cell]:
             model.add_edge("g"+name[cell], "g"+name[child])
@@ -134,7 +138,7 @@ Adds CPDs to a model.
 modelFolder: path to directory
 dataFolder: path to directory
 modelName: unique name for this model/computation
-modelExtension: model extension in the form `_[conjugation function]_[colour function]_[maturation function]`
+modelExtension: model extension in the form `_[conjugation function]_[colour function]_[maturation function]` (don't include .pickle)
 delayFunctionPickleFile: pickle file with the BaseDelayFunction() instance to use
 save: if we should save the model to a file (pickle)
 debug: 0 = nothing, 1 = status, 2 = verbose
@@ -178,6 +182,8 @@ def addDelayFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, 
             continue
         if debug >= 2:
             print("Computing CPD for " + node)
+        if progressBar:
+            iterator.set_description(desc="Working on " + node)
         timestep = int(node.split("_")[1])
         evidence = []
         evidence_noise = []
@@ -211,7 +217,7 @@ Add conjugation function CPDs to a model.
 modelFolder: path to directory
 dataFolder: path to directory
 modelName: unique name for this model/computation
-modelExtension: model extension in the form `_[conjugation function]_[colour function]_[maturation function]`
+modelExtension: model extension in the form `_[conjugation function]_[colour function]_[maturation function]` (don't include .pickle)
 conjugationFunctionPickleFile: pickle file with the BaseDelayFunction() instance to use
 save: if we should save the model to a file (pickle)
 debug: 0 = nothing, 1 = status, 2 = verbose
@@ -264,6 +270,8 @@ def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExten
             continue
         if debug >= 2:
             print("Computing CPD for " + node)
+        if progressBar:
+            iterator.set_description(desc="Working on " + node)
 
         evidence = []
         evidence_noise = []
@@ -297,7 +305,7 @@ def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExten
 
     return model
 
-
+#import plplpl.model.model_builder as mb
 #mb.addConjugationFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_colourDelayFunctionUniform_maturationDelayFunctionNormal", "functions/contactWeightsFixedNaive.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=mb.addDelayFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_None_None", "functions/colourDelayFunctionUniform.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=mb.addDelayFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_colourDelayFunctionUniform_None", "functions/maturationDelayFunctionNormal.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=mb.setupGraph("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", 10, 36, 4, 29, save=True, debug=1, progressBar=True))), saveConjugationFunction=False)
 
 

@@ -518,8 +518,8 @@ def saveAll(rawCSVfilename, saveDirectory, modelname):
         with open(saveDirectory + modelname + "_step.pickle", "wb") as f:
             pickle.dump(steps, f)
 
-    if not os.path.isfile(saveDirectory + modelname + "_conjugantList.pickle"):
-        with open(saveDirectory + modelname + "_conjugantList.pickle", "wb") as f:
+    if not os.path.isfile(saveDirectory + modelname + "_firsts.pickle"):
+        with open(saveDirectory + modelname + "_firsts.pickle", "wb") as f:
             pickle.dump(firsts, f)
 
 if __name__ == "__main__":
