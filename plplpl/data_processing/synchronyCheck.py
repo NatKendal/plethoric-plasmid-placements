@@ -106,7 +106,7 @@ def getFirstCertain(allCells,colours,forwardLinks,synchrony,tol=TOLERANCE):
 # output: list of uid of all green cells guaranteed to have the gene
 def getAllGreenCertain(certain,colours,forwardLinks):
 
-    allCertain = certain
+    allCertain = certain.copy()
 
     # for each certain cell, track down its lineage until the cell becomes yellow 
     # or splits into two cells (that parent will already be in certain)
@@ -115,19 +115,19 @@ def getAllGreenCertain(certain,colours,forwardLinks):
         for child in forwardLinks[cell]:
 
             current = child
-            next = True
+            nextFlag = True
 
-            while next:
+            while nextFlag:
                 # first check the colour - green added to allCertain, otherwise stop
                 if colours[current] == 1:
-                    certain.add(child)
+                    allCertain.add(child)
                 else:
-                    next = False
+                    nextFlag = False
 
                 # if it has no forward links or too many, stop
                 # otherwise take the one link as the new current cell
-                if len(forwardLinks[current] != 1):
-                    next = False
+                if len(forwardLinks[current]) != 1:
+                    nextFlag = False
                 else: 
                     current = forwardLinks[current][0]
 
@@ -151,7 +151,7 @@ def getAllCertain(certain,byStep,backwardLinks):
 
     return list(allCertain)
 
-def saveSynchronyCertaintyToModel(dataFolder, modelName, save=True):
+def saveSynchronyCertainty(dataFolder, modelName, save=True):
 
     # get all the relevant dictionaries
     with open(dataFolder + modelName + "_byStep.pickle", "rb") as f:

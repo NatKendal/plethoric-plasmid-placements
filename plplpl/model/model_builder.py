@@ -53,15 +53,15 @@ def setupGraph(modelFolder, dataFolder, modelName, colour_min, colour_max, matur
         iterable = cells
     # Add the nodes to the graph.
     for cell in iterable:
+        if debug >= 2:
+            print("Added cell " + name[cell])
+        if progressBar:
+            iterable.set_description(desc="Adding " + str(cell))
         # Add three nodes per cell per timestep.
         # g[cellId]_[step] is 1 if cellId has the gene at timestep step, else 0.
         # c[cellId]_[step] is 1 if cellId is coloured (not green) at timestep step, else 0.
         # m[cellId]_[step] is 1 if cellId is matured (can conjugate) at timestep step, else 0.
         model.add_nodes_from(["g"+name[cell], "c"+name[cell], "m"+name[cell]])
-        if debug >= 2:
-            print("Added cell " + name[cell])
-        if progressBar:
-            iterator.set_description(desc="Adding " + cell)
 
     # Add edges to the graph.
     # First: get the children of a cell, either true children or itself at the next timestep.
@@ -83,7 +83,7 @@ def setupGraph(modelFolder, dataFolder, modelName, colour_min, colour_max, matur
     # Add the edges, one cell at a time.
     for cell in iterable:
         if progressBar:
-            iterator.set_description(desc="Adding edges to " + cell)
+            iterable.set_description(desc="Adding edges to " + str(cell))
         # First: add the simple downward edges. (g -> g, c -> c, m -> m)
         for child in forwardLinks[cell]:
             model.add_edge("g"+name[cell], "g"+name[child])
