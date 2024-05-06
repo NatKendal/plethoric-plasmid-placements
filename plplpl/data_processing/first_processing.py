@@ -123,19 +123,19 @@ def getFirstFrameColour(byStep,raw):
 
     firstColours = dict()
 
-    transconjugants = []
+    firstTransconjugants = []
 
     # first step 
     for cell in byStep[1]:
 
         if raw[cell]['flag'] == 1:
             firstColours[cell] = 2
-            transconjugants.append(cell)
+            firstTransconjugants.append(cell)
 
         else:
             firstColours[cell] = redOrGreen(rfp=raw[cell]['rfp'],gfp=raw[cell]['gfp'])
 
-    return firstColours, transconjugants
+    return firstColours, firstTransconjugants
     
 # ------------------------------------------------------------------
 ### Actual Dictionary Outputs
@@ -320,15 +320,10 @@ def dictNeighbours(raw, byStep, maxDistance=MAX_DISTANCE):
 # input: raw data, backward links, cells in each step; dictionary of colours for first step
 # output: dictionary mapping each uid to cell colour, list of first transconjugants
 # 0 for donor cell, 1 for recipient cell, 2 is transconjugant
-def dictColours(raw, backwardLinks, byStep, firstFrame=None):
+def dictColours(raw, backwardLinks, byStep, firstColours, firstTransconjugants):
 
-    # if manual first frame provided, use it
-    if firstFrame is not None:
-        colours, firsts = firstFrame
-
-    # otherwise, we start calculate with the function
-    else:
-        colours, firsts = getFirstFrameColour(byStep,raw)
+    colours = firstColours
+    firsts = firstTransconjugants
 
     # go forwards by step so that parents are always assigned colours first
     steps = list(byStep.keys())
@@ -422,10 +417,19 @@ def saveAll(rawCSVfilename, saveDirectory, modelname):
     backwardLinks = dictBackwardLinks(raw, cellsByStep)
     steps = dictSteps(raw)
     byStep = dictByStep(steps)
-    colours, firsts = dictColours(raw,backwardLinks,byStep)
+    firstColours, firstTransconjugants = getFirstFrameColour(byStep, raw)
+    colours, firsts = dictColours(raw,backwardLinks,byStep,firstColours,firstTransconjugants)
     humanFriendlyName = dictHumanFriendlyName(raw)
     uid = {name: uid for uid, name in humanFriendlyName.items()}
     os.makedirs(saveDirectory, exist_ok=True)
+
+    if not os.path.isfile(saveDirectory + modelname + "_firstFrameColours.pickle"):
+        with open(saveDirectory + modelname + "_firstFrameColours.pickle", "wb") as f:
+            pickle.dump(firstColours, f)
+
+    if not os.path.isfile(saveDirectory + modelname + "_firstFrameTransconjugants.pickle"):
+        with open(saveDirectory + modelname + "_firstFrameTransconjugants.pickle", "wb") as f:
+            pickle.dump(firstTransconjugants, f)
 
     if not os.path.isfile(saveDirectory + modelname + "_cellId.pickle"):
         with open(saveDirectory + modelname + "_cellId.pickle", "wb") as f:
