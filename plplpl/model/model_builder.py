@@ -54,9 +54,9 @@ def setupGraph(modelFolder, dataFolder, modelName, colour_min, colour_max, matur
     # Add the nodes to the graph.
     for cell in iterable:
         if debug >= 2:
-            print("Added cell " + name[cell])
+            print("Adding node " + name[cell])
         if progressBar:
-            iterable.set_description(desc="Adding " + str(cell))
+            iterable.set_description(desc="Adding node " + str(cell))
         # Add three nodes per cell per timestep.
         # g[cellId]_[step] is 1 if cellId has the gene at timestep step, else 0.
         # c[cellId]_[step] is 1 if cellId is coloured (not green) at timestep step, else 0.
@@ -152,8 +152,6 @@ loadedModel: if we should use a model already in memory instead of loading one.
 def addDelayFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, delayFunctionPickleFile, save=True, debug=0, progressBar=False, safeMode=False, loadedModel=None):
     if progressBar:
         import tqdm
-        if debug >= 1:
-            print("Loaded tqdm for progress bar.")
 
     if debug >= 1:
         print("Loading model.")
@@ -196,12 +194,14 @@ def addDelayFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, 
         # NOTE: We are forcefully adding CPDs to the model here. Trading safety for speed.
         # 8 hours -> 30 seconds
         if safeMode:
-            model.add_cpds(BinaryNoisyOrCPD(node, [[1], [0]], evidence=evidence, evidence_noise=evidence_noise))
+            model.add_cpds(BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise))
         else:
-            model.cpds.append(BinaryNoisyOrCPD(node, [[1], [0]], evidence=evidence, evidence_noise=evidence_noise))
+            model.cpds.append(BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise))
 
     if debug >= 1:
         print("Finished adding CPDs.")
+    
+    model.constants["function" + str(delayFunction.nameIndex)] = delayFunction.name
 
     if save:
         if debug >= 1:
@@ -284,9 +284,9 @@ def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExten
 
         # NOTE: We are forcefully adding CPDs to the model here. Trading safety for speed.
         if safeMode:
-            model.add_cpds(BinaryNoisyOrCPD(node, [[1], [0]], evidence=evidence, evidence_noise=evidence_noise))
+            model.add_cpds(BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise))
         else:
-            model.cpds.append(BinaryNoisyOrCPD(node, [[1], [0]], evidence=evidence, evidence_noise=evidence_noise))
+            model.cpds.append(BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise))
 
     if debug >= 1:
         print("Finished adding CPDs.")
@@ -296,6 +296,8 @@ def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExten
             print("Saving conjugation function to " + dataFolder + modelName + "_" + conjugationFunction.name + ".pickle")
         with open(dataFolder + modelName + "_" + conjugationFunction.name + ".pickle", "wb") as f:
             pickle.dump(conjugationFunction, f)
+
+    model.constants["function" + str(conjugationFunction.nameIndex)] = conjugationFunction.name
 
     if save:
         if debug >= 1:
