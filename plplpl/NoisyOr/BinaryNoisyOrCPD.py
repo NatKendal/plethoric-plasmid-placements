@@ -180,16 +180,16 @@ class BinaryNoisyOrCPD(TabularCPD):
 
     # String or array like to remove from evidence.
     def delete_evidence(self, evidenceVariable):
-        if isinstance(evidenceVariable, [str, int]) and evidenceVariable in self.evidence:
+        if isinstance(evidenceVariable, (str, int)) and evidenceVariable in self.evidence:
             i = self.evidence.index(evidenceVariable)
             del self.evidence[i]
             del self.evidence_noise[i]
             del self.variables[i+1]
-            del self.cardinality[i+1]
+            self.cardinality = np.delete(self.cardinality, i+1)
         else:
             for e in evidenceVariable:
                 i = self.evidence.index(e)
                 del self.evidence[i]
                 del self.evidence_noise[i]
                 del self.variables[i+1]
-                del self.cardinality[i+1]
+                self.cardinality = np.delete(self.cardinality, i+1)

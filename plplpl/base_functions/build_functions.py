@@ -10,7 +10,8 @@ def buildFunctions(location, force=False):
     functionList = [
         ContactWeightsFixedNaive(),
         MaturationDelayFunctionNormal(),
-        ColourDelayFunctionUniform()
+        ColourDelayFunctionUniform(),
+        ContactWeightsBaseline()
     ]
 
     for function in functionList:

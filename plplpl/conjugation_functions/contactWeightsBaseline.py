@@ -30,7 +30,7 @@ def checkContact(endpoints1, width1, endpoints2, width2, epsilon=0.3):
     result = p1.intersects(p2)
     
     if result:
-        return 1
+        return 1/1000
     else:
         return 0
 

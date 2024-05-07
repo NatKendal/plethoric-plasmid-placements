@@ -91,7 +91,8 @@ def setupGraph(modelFolder, dataFolder, modelName, colour_min, colour_max, matur
             model.add_edge("m"+name[cell], "m"+name[child])
         # Second: add inter-cell edges to neighbours. (m -> g)
         for neighbour in neighbours[cell]:
-            model.add_edge("m"+name[cell], "g"+name[neighbour])
+            for futureCell in forwardLinks[neighbour]:
+                model.add_edge("m"+name[cell], "g"+name[futureCell])
         # Third: add the intra-cell edges to children. (g -> c, g -> m)
         children = forwardLinks[cell].copy()
         depth = 1
@@ -246,9 +247,9 @@ def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExten
         uid = pickle.load(f)
 
     if debug >= 1:
-        print("Loading parents.")
-    with open(dataFolder + modelName + "_parent.pickle", "rb") as f:
-        parent = pickle.load(f)
+        print("Loading backward links.")
+    with open(dataFolder + modelName + "_backwardLinks.pickle", "rb") as f:
+        backwardLinks = pickle.load(f)
 
     if debug >= 1:
         print("Loading conjugation function.")
@@ -275,11 +276,16 @@ def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExten
 
         evidence = []
         evidence_noise = []
-        for predecessor in model.predecessors(node):
-            evidence.append(predecessor)
+        for predecessor in list(model.predecessors(node)):
             if predecessor[0] == "m":
-                evidence_noise.append(conjugationFunction.weight(parent[uid[node[1:]]], uid[predecessor[1:]], debug=debug))
+                weight = conjugationFunction.weight(backwardLinks[uid[node[1:]]], uid[predecessor[1:]], debug=debug)
+                if weight != 0:
+                    evidence.append(predecessor)
+                    evidence_noise.append(weight)
+                else:
+                    model.remove_edge(predecessor, node)
             else:
+                evidence.append(predecessor)
                 evidence_noise.append(1.0)
 
         # NOTE: We are forcefully adding CPDs to the model here. Trading safety for speed.
