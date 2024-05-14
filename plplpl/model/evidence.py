@@ -255,16 +255,7 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                     continue
                 elif evidence["g"+name[parent]] == 0:
                     seen.append(parent)
-            else:
-                """
-                first = seen[-1]
-                # This probably shouldn't come up, but it fixes weird cases of cells appearing with no parent.
-                evidence["g"+name[first]] = 0
-                evidence["m"+name[first]] = 0
-                if evidence["c"+name[first]] == 1:
-                    print("Something weird happened. A cell with no parent showed up and wasn't green. " + name[first])
-                    raise AssertionError("Something weird happened. A cell with no parent showed up and wasn't green. " + name[first])
-                """
+            else: 
                 print("Something weird happened. All initial cells should be flagged matching their colour, but " + node + " wasn't.")
                 raise AssertionError("Something weird happened. All initial cells should be flagged matching their colour, but " + node + " wasn't.")
             children = forwardLinks[uid[node[1:]]]

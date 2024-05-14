@@ -16,21 +16,21 @@ loadedEvidence: if we should use an evidence already in memory instead of loadin
 loadedForwardLinks: if we should use a forwardLinks already in memory instead of loading one.
 loadedBackwardLinks: if we should use a backwardLinks already in memory instead of loading one.
 
-TODO ALL WRONG
-
-Returns dictionary of queries
-completeConjugationQueries[queryCoreVariable] = [list(queryVariables), list(criticalRegion), list(queryEvidence), list(queryHidden), list(queryForcedUnknown), list(connectedQueries), list(queryRequired)]
-    - Query variables: all leaf unknowns to check probability of 1.
-    - Critical Region: Core hidden variables to marginalize out.
-    - Query Evidence: Nodes relevant to the query that are given as evidence.
-    - Query Hidden: Non-Critical Hidden variables to marginalize out.
-    - Query Forced Unknown: Nodes with evidence but the evidence is not given in order to make a counterfactual query.
-    - Connected Queries: Query core variables to other queries not independent of this one.
-    - Query Required: Variables that are not in a query but are unknown. Typically weird stuff near start or end.
+Returns dictionary of dictionaries
+completeConjugateQueries[query] = {"query":queryVariables, "critical":criticalRegion, "evidence":queryEvidence, "unknown":queryForcedUnknown, "connectedDown":connectedDownwardQueries, "hidden":queryHidden,  "incoming":queryIncomingMature.difference(queryForcedUnknown).difference(queryHidden), "virtual":set(), "connectedUp":set(), "used":queryUsed, "required":set()}
+    - query: all leaf unknowns to check probability of being 1.
+    - critical: Core hidden variables to marginalize out.
+    - evidence: Nodes relevant to the query that are given as evidence.
+    - unknown: Nodes with evidence but the evidence is not given in order to make a counterfactual query.
+    - connectedDown: Other queries which use a maturation node pointed to by a critical node in this query.
+    - hidden: Non-Critical Hidden variables to marginalize out.
+    - incoming: Incoming maturation nodes to critical variables to handle. Should be empty when dictionary is returned.
+    - virtual: Incoming maturation nodes which can be given as virtual evidence once computed.
+    - connectedUp: Other queries which have a maturation node pointed into a critical node of this query.
+    - used: variables that are used in other queries in connectedDown
+    - required: variables needed from queries in connectedUp
 """
 
-# NEXT TODO:
-# Query Required shouldn't exist. Sit down and do the recursion until you find which query things are related to, or show that they aren't related.
 def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True, debug=0, progressBar=False, loadedModel=None, loadedEvidence=None, loadedForwardLinks=None, loadedBackwardLinks=None):
     if progressBar:
         import tqdm
@@ -309,20 +309,6 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
         if progressBar:
             iterator.set_description("Working on " + query)
 
-        """
-        queue = deque(completeConjugateQueries[query]["incoming"])
-        seen = set()
-        while queue:
-            incoming = queue.popleft()
-            if incoming in seen:
-                continue
-            seen.add(incoming)
-            for parent in model.predecessors(incoming):
-                if parent[0] == "m":
-                    completeConjugateQueries[query]["incoming"].add(incoming)
-                    queue.append(parent)
-        """
-
         for otherQuery in list(completeConjugateQueries.keys()):
             if otherQuery == query:
                 continue
@@ -338,24 +324,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                 completeConjugateQueries[query]["incoming"] = completeConjugateQueries[query]["incoming"].difference(required)
                 completeConjugateQueries[query]["required"] = completeConjugateQueries[query]["required"].union(required)
                 # Could save which query these are from here. Might help?
-        
-        """
-        queue = deque(completeConjugateQueries[query]["incoming"])
-        while queue:
-            incoming = queue.popleft()
-            if incoming in completeConjugateQueries[query]["virtual"]:
-                continue
-            for parent in model.predecessors(incoming):
-                if parent[0] == "m":
-                    queue.append(parent)
-                elif parent not in evidence:
-                    print("Incoming node " + incoming + " of query " + query + " can't be computed as virtual evidence and also is not in a query.")
-                    raise AssertionError("Incoming node " + incoming + " of query " + query + " can't be computed as virtual evidence and also is not in a query.")
-                    break
-            completeConjugateQueries[query]["virtual"].add(incoming)
-            if incoming in completeConjugateQueries[query]["incoming"]:
-                completeConjugateQueries[query]["incoming"].remove(incoming)
-        """
+         
         for incoming in list(completeConjugateQueries[query]["incoming"]):
             for parent in model.predecessors(incoming):
                 if (parent[0] != "m") and (parent not in evidence):
