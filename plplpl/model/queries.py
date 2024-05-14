@@ -12,8 +12,24 @@ save: if we should save the model to a file (pickle)
 debug: 0 = nothing, 1 = status, 2 = verbose
 progressBar: if we should show a progress bar on long for loops
 loadedModel: if we should use a model already in memory instead of loading one.
+loadedEvidence: if we should use an evidence already in memory instead of loading one.
+loadedForwardLinks: if we should use a forwardLinks already in memory instead of loading one.
+loadedBackwardLinks: if we should use a backwardLinks already in memory instead of loading one.
+
+Returns dictionary of queries
+completeConjugationQueries[queryCoreVariable] = [list(queryVariables), list(criticalRegion), list(queryEvidence), list(queryHidden), list(queryForcedUnknown), list(connectedQueries), list(queryRequired)]
+    - Query variables: all leaf unknowns to check probability of 1.
+    - Critical Region: Core hidden variables to marginalize out.
+    - Query Evidence: Nodes relevant to the query that are given as evidence.
+    - Query Hidden: Non-Critical Hidden variables to marginalize out.
+    - Query Forced Unknown: Nodes with evidence but the evidence is not given in order to make a counterfactual query.
+    - Connected Queries: Query core variables to other queries not independent of this one.
+    - Query Required: Variables that are not in a query but are unknown. Typically weird stuff near start or end.
 """
-def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True, debug=0, progressBar=False, loadedModel=None):
+
+# NEXT TODO:
+# Query Required shouldn't exist. Sit down and do the recursion until you find which query things are related to, or show that they aren't related.
+def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True, debug=0, progressBar=False, loadedModel=None, loadedEvidence=None, loadedForwardLinks=None, loadedBackwardLinks=None):
     if progressBar:
         import tqdm
 
@@ -38,9 +54,20 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
         backwardLinks = pickle.load(f)
     
     if debug >= 1:
-        print("Loading forwards links. (Pruned)")
-    with open(dataFolder + modelName + "_forwardLinksContradictionsPruned.pickle", "rb") as f:
-        forwardLinks = pickle.load(f)
+        print("Loading forward links. (Pruned)")
+    if loadedForwardLinks:
+        forwardLinks = loadedForwardLinks
+    else:
+        with open(dataFolder + modelName + "_forwardLinksPostEvidence.pickle", "rb") as f:
+            forwardLinks = pickle.load(f)
+
+    if debug >= 1:
+        print("Loading backward links. (Pruned)")
+    if loadedBackwardLinks:
+        backwardLinks = loadedBackwardLinks
+    else:
+        with open(dataFolder + modelName + "_backwardLinksPostEvidence.pickle", "rb") as f:
+            backwardLinks = pickle.load(f)
 
     if debug >= 1:
         print("Loading first events.")
@@ -49,8 +76,11 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
 
     if debug >= 1:
         print("Loading evidence.")
-    with open(modelFolder + modelName + "_model" + modelExtension + "_evidence.pickle", "rb") as f:
-        evidence = pickle.load(f)
+    if loadedEvidence:
+        evidence = loadedEvidence
+    else:
+        with open(modelFolder + modelName + "_model" + modelExtension + "_evidence.pickle", "rb") as f:
+            evidence = pickle.load(f)
 
     #
     # False Negative Queries
@@ -130,7 +160,8 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                     else:
                         for otherQuery in conjugationQueries.keys():
                             if grandParent in conjugationQueries[otherQuery]:
-                                connectedQueries.add(otherQuery)
+                                if otherQuery != query:
+                                    connectedQueries.add(otherQuery)
                                 break
                         else:
                             queryRequired.add(grandParent)
@@ -169,7 +200,8 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                                         else:
                                             for otherQuery in conjugationQueries.keys():
                                                 if grandPredecessor in conjugationQueries[otherQuery]:
-                                                    connectedQueries.add(otherQuery)
+                                                    if otherQuery != query:
+                                                        connectedQueries.add(otherQuery)
                                                     break
                                             else:
                                                 queryRequired.add(grandPredecessor)
@@ -182,8 +214,19 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         print("Model expected no evidence but found it at query " + query + " " + critical + " " + child)
                         raise ValueError("Model expected no evidence but found it at query " + query + " " + critical + " " + child)
                     for grandChild in model.successors(child):
+                        if grandChild[0] != "g":
+                            continue
                         if grandChild in evidence:
                             queryEvidence.add(grandChild)
+                            if evidence[grandChild] == 0:
+                                # If it's a zero, then other incoming events aren't correlated.
+                                continue
+                            if backwardLinks[uid[grandChild[1:]]] == -1:
+                                # This shouldn't happen, but in case it does, we can just ignore it.
+                                continue
+                            if "g" + name[backwardLinks[uid[grandChild[1:]]]] in evidence and evidence["g" + name[backwardLinks[uid[grandChild[1:]]]]]:
+                                # If its parent had the gene, then incoming events are of no consequence.
+                                continue
                             for predecessor in model.predecessors(grandChild):
                                 if predecessor == child:
                                     continue
@@ -196,7 +239,8 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                                         else:
                                             for otherQuery in conjugationQueries.keys():
                                                 if grandPredecessor in conjugationQueries[otherQuery]:
-                                                    connectedQueries.add(otherQuery)
+                                                    if otherQuery != query:
+                                                        connectedQueries.add(otherQuery)
                                                     break
                                             else:
                                                 queryRequired.add(grandPredecessor)
@@ -204,7 +248,8 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         else:
                             for otherQuery in conjugationQueries.keys():
                                 if grandChild in conjugationQueries[otherQuery]:
-                                    connectedQueries.add(otherQuery)
+                                    if otherQuery != query:
+                                        connectedQueries.add(otherQuery)
                                     break
                             else:
                                 # If this path leads to the unknown, no dependence flows through here.
@@ -225,7 +270,8 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         else:
                             for otherQuery in conjugationQueries.keys():
                                 if grandParent in conjugationQueries[otherQuery]:
-                                    connectedQueries.add(otherQuery)
+                                    if otherQuery != query:
+                                        connectedQueries.add(otherQuery)
                                     break
                             else:
                                 queryRequired.add(grandParent)
@@ -239,7 +285,10 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
     # False Positive Queries:
     #
 
-    nonConjugateQueries = list()
+    if debug >= 1:
+        print("Finished making complete conjugation queries. Making non-conjugation queries.")
+
+    nonConjugateQueries = dict()
     if progressBar:
         iterator = tqdm.tqdm(model)
     else:
@@ -253,11 +302,20 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
         if evidence[node] == 1:
             continue
         # evidence[node] == 0
-
-
+        if backwardLinks[uid[node[1:]]] == -1:
+            continue
+        
+        if debug >= 2:
+            print("Working on " + node)
+        if progressBar:
+            iterator.set_description(desc="Working on " + node)
+        # We should check false positive chance of node.
+        nonConjugateQueries[node] = [list(model.predecessors(node))]
 
     if save:
-        with open(modelFolder + modelName + "_model" + modelExtension + "_queries", "wb") as f:
+        with open(modelFolder + modelName + "_model" + modelExtension + "_completeConjugateQueries.pickle", "wb") as f:
             pickle.dump(completeConjugateQueries, f)
+        with open(modelFolder + modelName + "_model" + modelExtension + "_nonConjugateQueries.pickle", "wb") as f:
+            pickle.dump(nonConjugateQueries, f)
 
-    return completeConjugateQueries
+    return completeConjugateQueries, nonConjugateQueries

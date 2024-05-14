@@ -58,7 +58,7 @@ class BinaryNoisyOrCPD(TabularCPD):
         Configure warning level.
             >= 2: Enables alert when using state number instead of name.
     """
-    def __init__(self, variable, internalProbability, evidence=None, evidence_noise=None, maxTableSize=257, state_names={}, debug=0):
+    def __init__(self, variable, internalProbability, evidence=[], evidence_noise=[], maxTableSize=257, state_names={}, debug=0):
         # Setup initial internal probability.
         self.internalProbability = internalProbability
 

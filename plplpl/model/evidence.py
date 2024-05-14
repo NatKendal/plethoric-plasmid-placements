@@ -1,6 +1,7 @@
 import pickle
 
 from plplpl.NoisyOr import NoisyOrBayesianNetwork
+from plplpl.NoisyOr import BinaryNoisyOrCPD
 
 """
 Find all evidence that could be supplied to the model from the data.
@@ -84,12 +85,18 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
             iterator.set_description(desc="Working on " + node)
 
         colour = colours[uid[node[1:]]]
+
         if colour == 0: # Red
             evidence["g"+node[1:]] = 1 # Red cells have the gene.
             evidence[node] = 1 # Red cells are coloured.
             evidence["m"+node[1:]] = 1 # Red cells are mature.
-        if colour == 1: # Green
+        elif colour == 1: # Green
             evidence[node] = 0 # Green cells are not coloured.
+            if int(node.split("_")[1]) == 1:
+                # If this is the first frame, also force gene and activation to match colour.
+                evidence["g" + node[1:]] = 0
+                evidence["m" + node[1:]] = 0
+                continue
             depth = 0
             parent = uid[node[1:]]
             seen = set()
@@ -108,29 +115,14 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                     # Resolved by bias towards having the gene and not transferring it to child.
                     pass
                 else:
-                    evidence["g" + name[parent]] = 0
-            start = colour_max - depth
-            if start <= maturation_min - 1:
-                children = [parent]
-                for _ in range(start, maturation_min-1):
-                    newChildren = []
-                    skipCheck = (len(seen) == 0)
-                    for child in children:
-                        for grandChild in forwardLinks[child]:
-                            if grandChild in seen or skipCheck:
-                                seen.remove(grandChild)
-                                newChildren.append(grandChild)
-                    children = newChildren
-                for child in children:
-                    # Not having the gene implies not mature at some point in the relative future.
-                    if "m" + name[child] in evidence and evidence["m" + name[child]] == 1:
-                        # This contradiction case should be caught and fixed before we get here.
-                        print("CONTRADICTION WHEN CALCULATING " + name[parent] + "!!!")
-                        raise Exception("Shouldn't get here.")
-                    else:
-                        evidence["m" + name[child]] = 0
+                    evidence["g" + name[parent]] = 0     
         elif colour == 2: # Yellow
             evidence[node] = 1 # Yellow cells are coloured.
+            if int(node.split("_")[1]) == 1:
+                # If this is the first frame, also force gene and activation to match colour.
+                evidence["g" + node[1:]] = 1
+                evidence["m" + node[1:]] = 1
+                continue
             depth = 0
             parent = uid[node[1:]]
             seen = set()
@@ -148,21 +140,6 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                     #print("CONTRADICTION IN EVIDENCE CALCULATION AT " + name[parent] + "!!!")
                     # Resolved by bias towards having the gene and not transferring it to child.
                 evidence["g" + name[parent]] = 1
-            start = colour_min - depth
-            if start <= maturation_max:
-                children = [parent]
-                for _ in range(start, maturation_max):
-                    newChildren = []
-                    skipCheck = (len(seen) == 0)
-                    for child in children:
-                        for grandChild in forwardLinks[child]:
-                            if grandChild in seen or skipCheck:
-                                seen.remove(grandChild)
-                                newChildren.append(grandChild)
-                    children = newChildren
-                for child in children:
-                    # Having the gene implies mature at some point in the relative future.
-                    evidence["m" + name[child]] = 1
 
     if debug >= 1:
         print("Completed basic evidence. Now handling contradictions in model.")
@@ -187,14 +164,24 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
         # evidence[node] == 1
         for child in list(forwardLinks[uid[node[1:]]]):
             if ("g" + name[child] in evidence) and (evidence["g"+name[child]] == 0):
+                evidence["m"+name[child]] = 0
                 forwardLinks[uid[node[1:]]].remove(child)
-                model.remove_edge(node, "g"+name[child])
-                model.get_cpds("g"+name[child]).delete_evidence(node)
-                model.remove_edge("c"+node[1:], "c"+name[child])
-                model.get_cpds("c"+name[child]).delete_evidence("c"+node[1:])
-                model.remove_edge("m"+node[1:], "m"+name[child])
-                model.get_cpds("m"+name[child]).delete_evidence("m"+node[1:])
-                # TODO recalculate evidence if we think child was red
+                backwardLinks[child] = -1
+                
+                for parent in list(model.predecessors("g"+name[child])):
+                    model.remove_edge(parent, "g"+name[child])
+                model.remove_cpds("g"+name[child])
+                model.add_cpds(BinaryNoisyOrCPD("g"+name[child], 0))
+
+                for parent in list(model.predecessors("c"+name[child])):
+                    model.remove_edge(parent, "c"+name[child])
+                model.remove_cpds("c"+name[child])
+                model.add_cpds(BinaryNoisyOrCPD("c"+name[child], 0))
+
+                for parent in list(model.predecessors("m"+name[child])):
+                    model.remove_edge(parent, "m"+name[child])
+                model.remove_cpds("m"+name[child])
+                model.add_cpds(BinaryNoisyOrCPD("m"+name[child], 0))
 
     if debug >= 1:
         print("Finished handling contradictions in model. Adding in synchrony evidence.")
@@ -217,15 +204,6 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
             iterator.set_description(desc="Working on " + name[cell])
 
         evidence["g" + name[cell]] = 1
-        children = [cell]
-        for _ in range(maturation_max):
-            newChildren = []
-            for child in children:
-                newChildren = newChildren + forwardLinks[child]
-            children = newChildren
-        for child in children:
-            # Having the gene implies mature at some point in the relative future.
-            evidence["m" + name[child]] = 1
 
     if debug >= 1:
         print("Finished including synchrony evidence. Cleaning up edge cases.")
@@ -239,7 +217,86 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
         if node[0] != "g":
             continue
         
+        if debug >= 2:
+            print("Working on " + node)
+        if progressBar:
+            iterator.set_description(desc="Working on " + node)
+
         if node in evidence:
+            if evidence[node] == 0:
+                if backwardLinks[uid[node[1:]]] != -1 and ("g" + name[backwardLinks[uid[node[1:]]]] not in evidence):
+                    parent = backwardLinks[uid[node[1:]]]
+                    while parent != -1:
+                        if "g" + name[parent] in evidence:
+                            print("Errored in pushing back g=0 at " + node)
+                            raise Exception("Errored in pushing back g=0 at " + node)
+                        evidence["g" + name[parent]] = 0
+                        parent = backwardLinks[parent]
+            elif evidence[node] == 1:
+                children = forwardLinks[uid[node[1:]]]
+                while children:
+                    child = children.pop()
+                    if "g" + name[child] in evidence:
+                        if evidence["g" + name[child]] == 0:
+                            print("Errored in pushing forward g=1 at " + node)
+                            raise Exception("Errored in pushing forward g=1 at " + node)
+                    else:
+                        evidence["g" + name[child]] = 1
+                        for grandChild in forwardLinks[child]:
+                            children.append(grandChild)
+            else:
+                print("Shouldn't get here.")
+                raise Exception("Shouldn't get here.")
+        else:
+            parent = uid[node[1:]]
+            seen = []
+            while (parent != -1) and ("g" + name[parent] not in evidence):
+                seen.append(parent)
+                parent = backwardLinks[parent]
+            if parent != -1:
+                if evidence["g"+name[parent]] == 1:
+                    for s in seen:
+                        evidence["g"+name[s]] = 1
+                continue
+            else:
+                first = seen[-1]
+                children = forwardLinks[uid[node[1:]]]
+                reached = None
+                while children:
+                    child = children.pop()
+                    if "g" + name[child] in evidence:
+                        if reached and reached != evidence["g" + name[child]]:
+                            print("Found contradiction at " + node + " after it should have been fixed.")
+                            raise Exception("Found contradiction at " + node + " after it should have been fixed.")
+                        else:
+                            reached = evidence["g" + name[child]]
+                    else:
+                        seen.append(child)
+                        for grandChild in forwardLinks[child]:
+                            children.append(grandChild)
+                if (reached == None) or (reached == 0):
+                    for s in seen:
+                        evidence["g"+name[s]] = 0
+                else:
+                    if backwardLinks[first] == -1:
+                        evidence["g"+name[first]] = 0
+                        evidence["m"+name[first]] = 0
+                    else:
+                        print("Something weird is happening at " + node)
+                        raise Exception("Something weird is happening at " + node)
+
+    if debug >= 1:
+        print("Finished cleaning up edge cases. Starting to add maturation evidence.")
+    if progressBar:
+        iterator = tqdm.tqdm(model)
+    else:
+        iterator = model
+
+    for node in iterator:
+        if node[0] != "g":
+            continue
+
+        if node not in evidence:
             continue
 
         if debug >= 2:
@@ -247,28 +304,60 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
         if progressBar:
             iterator.set_description(desc="Working on " + node)
 
-        parent = uid[node[1:]]
-        trace = []
-        while (parent != -1) and ("g" + name[parent] not in evidence):
-            trace.append(parent)
-            parent = backwardLinks[parent]
-        if parent == -1:
-            continue
-        if evidence["g" + name[parent]] == 1:
-            for cell in trace:
-                evidence["g" + name[cell]] = 1 # Colour implies we have the gene, but the experiment ended too early.
-                children = [cell]
-                for _ in range(maturation_max):
-                    newChildren = []
-                    for child in children:
-                        newChildren = newChildren + forwardLinks[child]
-                    children = newChildren
-                for child in children:
-                    # Having the gene implies mature at some point in the relative future.
-                    evidence["m" + name[child]] = 1
-    
+        children = [uid[node[1:]]]
+        for _ in range(maturation_min if evidence[node] == 0 else maturation_max):
+            newChildren = []
+            for child in children:
+                newChildren = newChildren + forwardLinks[child]
+            children = newChildren
+        for child in children:
+            evidence["m" + name[child]] = evidence[node]
+
     if debug >= 1:
-        print("Finished cleaning up.")
+        print("Basic maturation evidence added. Cleaning up maturation edge cases now.")
+    if progressBar:
+        iterator = tqdm.tqdm(model)
+    else:
+        iterator = model
+
+    for node in iterator:
+        if node[0] != "m":
+            continue
+        if node not in evidence:
+            continue
+
+        if debug >= 2:
+            print("Working on " + node)
+        if progressBar:
+            iterator.set_description(desc="Working on " + node)
+
+        if evidence[node] == 0:
+            seen = []
+            parent = backwardLinks[uid[node[1:]]]
+            while (parent != -1) and ("m" + name[parent] not in evidence):
+                seen.append(parent)
+                parent = backwardLinks[parent]
+            if (parent == -1) or (evidence["m" + name[parent]] == 0):
+                for s in seen:
+                    evidence["m" + name[s]] = 0
+            else:
+                print("Contradiction when working through maturation edge cases at " + node)
+                raise Exception("Contradiction when working through maturation edge cases at " + node)
+        elif evidence[node] == 1:
+            children = forwardLinks[uid[node[1:]]]
+            while children:
+                child = children.pop()
+                if "m" + name[child] in evidence:
+                    if evidence["m" + name[child]] == 0:
+                        print("Contradiction when working through maturation edge cases at " + node)
+                        raise Exception("Contradiction when working through maturation edge cases at " + node)
+                else:
+                    evidence["m" + name[child]] = 0
+                    for grandChild in forwardLinks[child]:
+                        children.append(grandChild)
+
+    if debug >= 1:
+        print("Finished evidence calculation.")
     if save:
         if debug >= 1:
             print("Saving model.")
@@ -276,11 +365,12 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
             pickle.dump(model, f)
         with open(modelFolder + modelName + "_model" + modelExtension + "_contradictionsPruned_evidence.pickle", "wb") as f:
             pickle.dump(evidence, f)
-        with open(dataFolder + modelName + "_forwardLinksContradictionsPruned.pickle", "wb") as f:
+        with open(dataFolder + modelName + "_forwardLinksPostEvidence.pickle", "wb") as f:
             pickle.dump(forwardLinks, f)
-        #TODO should consider also altering backwardlinks
+        with open(dataFolder + modelName + "_backwardLinksPostEvidence.pickle", "wb") as f:
+            pickle.dump(backwardLinks, f)
 
-    return model, evidence, forwardLinks
+    return model, evidence, forwardLinks, backwardLinks
 
 
 
