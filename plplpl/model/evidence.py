@@ -92,19 +92,16 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
             evidence["m"+node[1:]] = 1 # Red cells are mature.
         elif colour == 1: # Green
             evidence[node] = 0 # Green cells are not coloured.
-            if int(node.split("_")[1]) == 1:
-                # If this is the first frame, also force gene and activation to match colour.
+            if backwardLinks[uid[node[1:]]] == -1:
+                # If this is the first frame, also force gene and maturation to match colour.
                 evidence["g" + node[1:]] = 0
                 evidence["m" + node[1:]] = 0
                 continue
             depth = 0
             parent = uid[node[1:]]
-            seen = set()
-            seen.add(parent)
             while depth < colour_max:
                 if backwardLinks[parent] != -1:
                     parent = backwardLinks[parent]
-                    seen.add(parent)
                     depth += 1
                 else:
                     break
@@ -118,19 +115,16 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                     evidence["g" + name[parent]] = 0     
         elif colour == 2: # Yellow
             evidence[node] = 1 # Yellow cells are coloured.
-            if int(node.split("_")[1]) == 1:
+            if backwardLinks[uid[node[1:]]] == -1:
                 # If this is the first frame, also force gene and activation to match colour.
                 evidence["g" + node[1:]] = 1
                 evidence["m" + node[1:]] = 1
                 continue
             depth = 0
             parent = uid[node[1:]]
-            seen = set()
-            seen.add(parent)
             while depth < colour_min:
                 if backwardLinks[parent] != -1:
                     parent = backwardLinks[parent]
-                    seen.add(parent)
                     depth += 1
                 else:
                     break
@@ -229,7 +223,7 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                     while parent != -1:
                         if "g" + name[parent] in evidence:
                             print("Errored in pushing back g=0 at " + node)
-                            raise Exception("Errored in pushing back g=0 at " + node)
+                            raise AssertionError("Errored in pushing back g=0 at " + node)
                         evidence["g" + name[parent]] = 0
                         parent = backwardLinks[parent]
             elif evidence[node] == 1:
@@ -239,14 +233,14 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                     if "g" + name[child] in evidence:
                         if evidence["g" + name[child]] == 0:
                             print("Errored in pushing forward g=1 at " + node)
-                            raise Exception("Errored in pushing forward g=1 at " + node)
+                            raise AssertionError("Errored in pushing forward g=1 at " + node)
                     else:
                         evidence["g" + name[child]] = 1
                         for grandChild in forwardLinks[child]:
                             children.append(grandChild)
             else:
                 print("Shouldn't get here.")
-                raise Exception("Shouldn't get here.")
+                raise AssertionError("Shouldn't get here.")
         else:
             parent = uid[node[1:]]
             seen = []
@@ -255,35 +249,50 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                 parent = backwardLinks[parent]
             if parent != -1:
                 if evidence["g"+name[parent]] == 1:
+                    # Push the 1 we found forward and continue.
                     for s in seen:
                         evidence["g"+name[s]] = 1
-                continue
+                    continue
+                elif evidence["g"+name[parent]] == 0:
+                    seen.append(parent)
             else:
+                """
                 first = seen[-1]
-                children = forwardLinks[uid[node[1:]]]
-                reached = None
-                while children:
-                    child = children.pop()
-                    if "g" + name[child] in evidence:
-                        if reached and reached != evidence["g" + name[child]]:
-                            print("Found contradiction at " + node + " after it should have been fixed.")
-                            raise Exception("Found contradiction at " + node + " after it should have been fixed.")
-                        else:
-                            reached = evidence["g" + name[child]]
+                # This probably shouldn't come up, but it fixes weird cases of cells appearing with no parent.
+                evidence["g"+name[first]] = 0
+                evidence["m"+name[first]] = 0
+                if evidence["c"+name[first]] == 1:
+                    print("Something weird happened. A cell with no parent showed up and wasn't green. " + name[first])
+                    raise AssertionError("Something weird happened. A cell with no parent showed up and wasn't green. " + name[first])
+                """
+                print("Something weird happened. All initial cells should be flagged matching their colour, but " + node + " wasn't.")
+                raise AssertionError("Something weird happened. All initial cells should be flagged matching their colour, but " + node + " wasn't.")
+            children = forwardLinks[uid[node[1:]]]
+            reached = None
+            while children:
+                child = children.pop()
+                if "g" + name[child] in evidence:
+                    if reached and reached != evidence["g" + name[child]]:
+                        print("Found contradiction at " + node + " after it should have been fixed.")
+                        raise AssertionError("Found contradiction at " + node + " after it should have been fixed.")
                     else:
-                        seen.append(child)
-                        for grandChild in forwardLinks[child]:
-                            children.append(grandChild)
-                if (reached == None) or (reached == 0):
-                    for s in seen:
-                        evidence["g"+name[s]] = 0
+                        reached = evidence["g" + name[child]]
                 else:
-                    if backwardLinks[first] == -1:
-                        evidence["g"+name[first]] = 0
-                        evidence["m"+name[first]] = 0
-                    else:
-                        print("Something weird is happening at " + node)
-                        raise Exception("Something weird is happening at " + node)
+                    seen.append(child)
+                    for grandChild in forwardLinks[child]:
+                        children.append(grandChild)
+            if (reached == 0):
+                # 0 pushes zero backward.
+                for s in seen:
+                    evidence["g"+name[s]] = 0
+            elif reached == 1:
+                # Found a critical region. Do nothing.
+                continue
+            elif reached == None:
+                for s in seen:
+                    evidence["g"+name[s]] = 0
+                # This case assumes that cells lost before they change colour never got the plasmid.
+                # Technically not guaranteed, but no evidence to the alternative exists.
 
     if debug >= 1:
         print("Finished cleaning up edge cases. Starting to add maturation evidence.")
@@ -342,7 +351,7 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                     evidence["m" + name[s]] = 0
             else:
                 print("Contradiction when working through maturation edge cases at " + node)
-                raise Exception("Contradiction when working through maturation edge cases at " + node)
+                raise AssertionError("Contradiction when working through maturation edge cases at " + node)
         elif evidence[node] == 1:
             children = forwardLinks[uid[node[1:]]]
             while children:
@@ -350,7 +359,7 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                 if "m" + name[child] in evidence:
                     if evidence["m" + name[child]] == 0:
                         print("Contradiction when working through maturation edge cases at " + node)
-                        raise Exception("Contradiction when working through maturation edge cases at " + node)
+                        raise AssertionError("Contradiction when working through maturation edge cases at " + node)
                 else:
                     evidence["m" + name[child]] = 0
                     for grandChild in forwardLinks[child]:
