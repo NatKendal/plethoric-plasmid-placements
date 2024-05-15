@@ -51,11 +51,6 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
         name = pickle.load(f)
 
     if debug >= 1:
-        print("Loading backward links.")
-    with open(dataFolder + modelName + "_backwardLinks.pickle", "rb") as f:
-        backwardLinks = pickle.load(f)
-    
-    if debug >= 1:
         print("Loading forward links. (Pruned)")
     if loadedForwardLinks:
         forwardLinks = loadedForwardLinks
@@ -72,17 +67,15 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
             backwardLinks = pickle.load(f)
 
     if debug >= 1:
-        print("Loading first events.")
-    with open(dataFolder + modelName + "_firsts.pickle", "rb") as f:
-        firsts = pickle.load(f)
-
-    if debug >= 1:
         print("Loading evidence.")
     if loadedEvidence:
         evidence = loadedEvidence
     else:
         with open(modelFolder + modelName + "_model" + modelExtension + "_evidence.pickle", "rb") as f:
             evidence = pickle.load(f)
+
+    # Keep track of every edge in every query, for normalizing later.
+    allEdges = set()
 
     #
     # False Negative Queries
@@ -157,8 +150,10 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
             if parent[0] == "g":
                 continue
             elif parent in evidence:
+                allEdges.add((parent, query))
                 queryEvidence.add(parent)
             else:
+                allEdges.add((parent, query))
                 queryIncomingMature.add(parent)
 
         # First get all queries we will absorb.
@@ -199,8 +194,10 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         if predecessor[0] == "g":
                             continue
                         elif predecessor in evidence:
+                            allEdges.add((predecessor, child))
                             queryEvidence.add(predecessor)
-                        else: 
+                        else:
+                            allEdges.add((predecessor, child))
                             queryIncomingMature.add(predecessor)
 
         # Next, we handle the complete critical region.
@@ -223,9 +220,9 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         if grandChild[0] != "g":
                             continue
                         if grandChild in evidence:
-                            queryEvidence.add(grandChild)
                             if evidence[grandChild] == 0:
                                 # If it's a zero, then other incoming events aren't correlated.
+                                allEdges.add((child, grandChild))
                                 queryEvidence.add(grandChild)
                                 continue
                             if backwardLinks[uid[grandChild[1:]]] == -1:
@@ -235,6 +232,8 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                                 # If its parent had the gene, then incoming events are of no consequence.
                                 continue
                             # evidence[grandChild] = 1 and parent doesn't. It's a query node exactly.
+                            allEdges.add((child, grandChild))
+                            # queryEvidence.add(grandChild) probably not needed here.
                             for otherQuery in conjugationQueries.keys():
                                 if grandChild in conjugationQueries[otherQuery] or grandChild == otherQuery:
                                     target = otherQuery
@@ -258,6 +257,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                                 print("Node " + grandChild + " looks like a query node, but isn't.")
                                 raise AssertionError("Node " + grandChild + " looks like a query node, but isn't.")
                         else:
+                            allEdges.add((child, grandChild))
                             for otherQuery in conjugationQueries.keys():
                                 if grandChild in conjugationQueries[otherQuery]:
                                     target = otherQuery
@@ -287,8 +287,11 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                 if parent in criticalRegion:
                     continue
                 elif parent in evidence:
+                    if parent[0] == "m":
+                        allEdges.add((parent, critical))
                     queryEvidence.add(parent)
                 elif parent[0] == "m":
+                    allEdges.add((parent, critical))
                     queryIncomingMature.add(parent)
                 else:
                     print("Shouldn't get here. Something went wrong when looking at " + query + " " + critical + " " + parent)
@@ -371,12 +374,18 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
         if progressBar:
             iterator.set_description(desc="Working on " + node)
         # We should check false positive chance of node.
-        nonConjugateQueries[node] = [list(model.predecessors(node))]
+        nonConjugateQueries[node] = []
+        for parent in model.predecessors(node):
+            if parent[0] == "m":
+                allEdges.add((parent, node))
+            nonConjugateQueries[node].append(parent)
 
     if save:
         with open(modelFolder + modelName + "_model" + modelExtension + "_completeConjugateQueries.pickle", "wb") as f:
             pickle.dump(completeConjugateQueries, f)
         with open(modelFolder + modelName + "_model" + modelExtension + "_nonConjugateQueries.pickle", "wb") as f:
             pickle.dump(nonConjugateQueries, f)
+        with open(modelFolder + modelName + "_model" + modelExtension + "_edgeList.pickle", "wb") as f:
+            pickle.dump(list(allEdges), f)
 
-    return completeConjugateQueries, nonConjugateQueries
+    return completeConjugateQueries, nonConjugateQueries, list(allEdges)

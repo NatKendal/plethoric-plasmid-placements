@@ -229,7 +229,7 @@ saveConjugationFunction: if we should save the conjugation function with loaded 
 """
 #TESTING:
 #mb.addConjugationFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_colourDelayFunctionUniform_maturationDelayFunctionNormal", "functions/contactWeightsFixedNaive.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=None, saveConjugationFunction=True)
-def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, conjugationFunctionPickleFile, save=True, debug=0, progressBar=False, safeMode=False, loadedModel=None, saveConjugationFunction=False):
+def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, conjugationFunctionPickleFile, save=True, debug=0, progressBar=False, safeMode=False, loadedModel=None, saveConjugationFunction=True):
     if progressBar:
         import tqdm
 
@@ -278,7 +278,7 @@ def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExten
         evidence_noise = []
         for predecessor in list(model.predecessors(node)):
             if predecessor[0] == "m":
-                weight = conjugationFunction.weight(backwardLinks[uid[node[1:]]], uid[predecessor[1:]], debug=debug)
+                weight = conjugationFunction.weight(uid[predecessor[1:]], backwardLinks[uid[node[1:]]], debug=debug)
                 if weight != 0:
                     evidence.append(predecessor)
                     evidence_noise.append(weight)
