@@ -2,7 +2,8 @@
 
 import pickle
 
-TOLERANCE = 2
+# time steps between lighting up -- currently set to one standard deviation
+TOLERANCE = 5
 
 # input: dictionary of cells per step, colours, forward links; list of first conjugation events
 # output: dictionary of uid --> list representing how many descendants became transconjugants, and when
