@@ -363,11 +363,11 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
             print("Saving model.")
         with open(modelFolder + modelName + "_model" + modelExtension + "_contradictionsPruned.pickle", "wb") as f:
             pickle.dump(model, f)
-        with open(modelFolder + modelName + "_model" + modelExtension + "_contradictionsPruned_evidence.pickle", "wb") as f:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_evidence.pickle", "wb") as f:
             pickle.dump(evidence, f)
-        with open(dataFolder + modelName + "_forwardLinksPostEvidence.pickle", "wb") as f:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_forwardLinksPostEvidence.pickle", "wb") as f:
             pickle.dump(forwardLinks, f)
-        with open(dataFolder + modelName + "_backwardLinksPostEvidence.pickle", "wb") as f:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_backwardLinksPostEvidence.pickle", "wb") as f:
             pickle.dump(backwardLinks, f)
 
     return model, evidence, forwardLinks, backwardLinks

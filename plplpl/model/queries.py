@@ -7,7 +7,7 @@ from plplpl.NoisyOr import NoisyOrBayesianNetwork
 modelFolder: path to directory
 dataFolder: path to directory
 modelName: unique name for this model/computation
-modelExtension: model extension in the form `_[conjugation function]_[colour function]_[maturation function]_contradictionsPruned` (don't include .pickle)
+modelExtension: model extension in the form `_[conjugation function]_[colour function]_[maturation function]` (don't include _contradictionsPruned.pickle)
 save: if we should save the model to a file (pickle)
 debug: 0 = nothing, 1 = status, 2 = verbose
 progressBar: if we should show a progress bar on long for loops
@@ -40,7 +40,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
     if loadedModel:
         model = loadedModel
     else:
-        with open(modelFolder + modelName + "_model" + modelExtension + ".pickle", "rb") as f:
+        with open(modelFolder + modelName + "_model" + modelExtension + "_contradictionsPruned.pickle", "rb") as f:
             model = pickle.load(f)
 
     if debug >= 1:
@@ -55,7 +55,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
     if loadedForwardLinks:
         forwardLinks = loadedForwardLinks
     else:
-        with open(dataFolder + modelName + "_forwardLinksPostEvidence.pickle", "rb") as f:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_forwardLinksPostEvidence.pickle", "rb") as f:
             forwardLinks = pickle.load(f)
 
     if debug >= 1:
@@ -63,7 +63,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
     if loadedBackwardLinks:
         backwardLinks = loadedBackwardLinks
     else:
-        with open(dataFolder + modelName + "_backwardLinksPostEvidence.pickle", "rb") as f:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_backwardLinksPostEvidence.pickle", "rb") as f:
             backwardLinks = pickle.load(f)
 
     if debug >= 1:
@@ -71,7 +71,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
     if loadedEvidence:
         evidence = loadedEvidence
     else:
-        with open(modelFolder + modelName + "_model" + modelExtension + "_evidence.pickle", "rb") as f:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_evidence.pickle", "rb") as f:
             evidence = pickle.load(f)
 
     # Keep track of every edge in every query, for normalizing later.
@@ -154,6 +154,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                 queryEvidence.add(parent)
             else:
                 allEdges.add((parent, query))
+                queryHidden.add(parent)
                 queryIncomingMature.add(parent)
 
         # First get all queries we will absorb.
@@ -198,6 +199,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                             queryEvidence.add(predecessor)
                         else:
                             allEdges.add((predecessor, child))
+                            queryHidden.add(predecessor)
                             queryIncomingMature.add(predecessor)
 
         # Next, we handle the complete critical region.
@@ -292,12 +294,13 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                     queryEvidence.add(parent)
                 elif parent[0] == "m":
                     allEdges.add((parent, critical))
+                    queryHidden.add(parent)
                     queryIncomingMature.add(parent)
                 else:
                     print("Shouldn't get here. Something went wrong when looking at " + query + " " + critical + " " + parent)
                     raise AssertionError("Shouldn't get here. Something went wrong when looking at " + query + " " + critical + " " + parent)
 
-        completeConjugateQueries[query] = {"query":queryVariables, "critical":criticalRegion, "evidence":queryEvidence, "unknown":queryForcedUnknown, "connectedDown":connectedDownwardQueries, "hidden":queryHidden,  "incoming":queryIncomingMature.difference(queryForcedUnknown).difference(queryHidden), "virtual":set(), "connectedUp":set(), "used":queryUsed, "required":set()}
+        completeConjugateQueries[query] = {"query":queryVariables, "critical":criticalRegion, "evidence":queryEvidence, "unknown":queryForcedUnknown, "connectedDown":connectedDownwardQueries, "hidden":queryHidden.difference(queryForcedUnknown),  "incoming":queryIncomingMature.difference(queryForcedUnknown), "virtual":set(), "connectedUp":set(), "used":queryUsed, "required":set()}
 
     if debug >= 1:
         print("Finished building naive queries. Calculating connected queries.")
@@ -316,17 +319,17 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
             if otherQuery == query:
                 continue
 
-            virtual = completeConjugateQueries[query]["incoming"].intersection(completeConjugateQueries[otherQuery]["unknown"])
-            if virtual:
-                completeConjugateQueries[query]["incoming"] = completeConjugateQueries[query]["incoming"].difference(virtual)
-                completeConjugateQueries[query]["virtual"] = completeConjugateQueries[query]["virtual"].union(virtual)
-
             required = completeConjugateQueries[query]["incoming"].intersection(completeConjugateQueries[otherQuery]["used"])
             if required:
                 completeConjugateQueries[query]["connectedUp"].add(otherQuery)
                 completeConjugateQueries[query]["incoming"] = completeConjugateQueries[query]["incoming"].difference(required)
                 completeConjugateQueries[query]["required"] = completeConjugateQueries[query]["required"].union(required)
                 # Could save which query these are from here. Might help?
+
+            virtual = completeConjugateQueries[query]["incoming"].intersection(completeConjugateQueries[otherQuery]["unknown"])
+            if virtual:
+                completeConjugateQueries[query]["incoming"] = completeConjugateQueries[query]["incoming"].difference(virtual)
+                completeConjugateQueries[query]["virtual"] = completeConjugateQueries[query]["virtual"].union(virtual)
          
         for incoming in list(completeConjugateQueries[query]["incoming"]):
             for parent in model.predecessors(incoming):
@@ -340,7 +343,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
             print("Some incoming mature nodes aren't accounted for in " + query)
             print(completeConjugateQueries[query]["incoming"])
             raise AssertionError("Some incoming mature nodes aren't accounted for in " + query)
-
+    
     for query in list(completeConjugateQueries.keys()):
         for key in completeConjugateQueries[query].keys():
             completeConjugateQueries[query][key] = list(completeConjugateQueries[query][key])
@@ -381,11 +384,11 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
             nonConjugateQueries[node].append(parent)
 
     if save:
-        with open(modelFolder + modelName + "_model" + modelExtension + "_completeConjugateQueries.pickle", "wb") as f:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_completeConjugateQueries.pickle", "wb") as f:
             pickle.dump(completeConjugateQueries, f)
-        with open(modelFolder + modelName + "_model" + modelExtension + "_nonConjugateQueries.pickle", "wb") as f:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_nonConjugateQueries.pickle", "wb") as f:
             pickle.dump(nonConjugateQueries, f)
-        with open(modelFolder + modelName + "_model" + modelExtension + "_edgeList.pickle", "wb") as f:
-            pickle.dump(list(allEdges), f)
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_edgeList.pickle", "wb") as f:
+            pickle.dump(sorted(list(allEdges)), f)
 
-    return completeConjugateQueries, nonConjugateQueries, list(allEdges)
+    return completeConjugateQueries, nonConjugateQueries, sorted(list(allEdges))

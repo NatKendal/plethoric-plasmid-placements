@@ -6,7 +6,7 @@ from plplpl.NoisyOr import NoisyOrBayesianNetwork
 modelFolder: path to directory
 dataFolder: path to directory
 modelName: unique name for this model/computation
-modelExtension: model extension in the form `_[conjugation function]_[colour function]_[maturation function]_contradictionsPruned` (don't include .pickle)
+modelExtension: model extension in the form `_[conjugation function]_[colour function]_[maturation function]` (don't include _contradictionsPruned.pickle)
 conjugationFunctionPickleFile: full path to a conjugation function pickle file to calculate edge weights to get normalization.
 normalizeTo: factor to normalize the sum of edge weights to. Defaults to 1.0
 save: if we should save the model to a file (pickle)
@@ -27,7 +27,7 @@ def normalizeModel(modelFolder, dataFolder, modelName, modelExtension, conjugati
     if loadedModel:
         model = loadedModel
     else:
-        with open(modelFolder + modelName + "_model" + modelExtension + ".pickle", "rb") as f:
+        with open(modelFolder + modelName + "_model" + modelExtension + "_contradictionsPruned.pickle", "rb") as f:
             model = pickle.load(f)
 
     if debug >= 1:
@@ -42,7 +42,7 @@ def normalizeModel(modelFolder, dataFolder, modelName, modelExtension, conjugati
     if loadedEdgeList:
         edgeList = loadedEdgeList
     else:
-        with open(modelFolder + modelName + "_model" + modelExtension + "_edgeList.pickle", "rb") as f:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_edgeList.pickle", "rb") as f:
             edgeList = pickle.load(f)
 
     if debug >= 1:
@@ -50,7 +50,7 @@ def normalizeModel(modelFolder, dataFolder, modelName, modelExtension, conjugati
     if loadedBackwardLinks:
         backwardLinks = loadedBackwardLinks
     else:
-        with open(dataFolder + modelName + "_backwardLinksPostEvidence.pickle", "rb") as f:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_backwardLinksPostEvidence.pickle", "rb") as f:
             backwardLinks = pickle.load(f)
 
     if debug >= 1:
@@ -102,7 +102,7 @@ def normalizeModel(modelFolder, dataFolder, modelName, modelExtension, conjugati
     if save:
         if debug >= 1:
             print("Saving model.")
-        with open(modelFolder + modelName + "_model" + modelExtension + "_normalized.pickle", "wb") as f:
+        with open(modelFolder + modelName + "_model" + modelExtension + "_contradictionsPruned_normalized.pickle", "wb") as f:
             pickle.dump(model, f)
 
     return model
