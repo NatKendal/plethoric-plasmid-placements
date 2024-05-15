@@ -8,7 +8,7 @@ from plplpl.base_functions import BaseDelayFunction
 
 # input: minimum and maximum of range in minutes, step length
 # output: dictionary of uniform distribution values for all time steps in the range 
-def calcCdfValues(min_val=50, max_val=180, step_length = 5):
+def calcCdfValues(min_val=40, max_val=190, step_length = 5):
 
     # convert minutes to steps
     # decrease min by one step so non-zero probability at the actual minimum
