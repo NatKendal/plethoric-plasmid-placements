@@ -37,7 +37,7 @@ def readFile(filename):
 
             # first add relevant info to the cellsByStep
             step = int(row[0])
-            cellId = int(row[2])
+            cellId = int(row[28])
 
             if step in cellsByStep.keys():
                 cellsByStep[step].append((cellId, currentRow))
@@ -47,8 +47,8 @@ def readFile(filename):
 
             # then, add everything to the main dictionary
             raw[currentRow] = {
-                            'step': int(row[0]),  
-                            'cellId': int(row[28]),
+                            'step': step,  
+                            'cellId': cellId,
                             'lineage': int(float(row[16])),
                             'cellAge': row[50],
                             'growthRate': row[51],
@@ -65,7 +65,7 @@ def readFile(filename):
                             'avgElongationRate': row[60],
                             'gfp': float(row[61]),
                             'rfp': float(row[62]),
-                            'flag': int(row[63])}
+                            'flag': int(float(row[63]))}
 
             # make things into ints/floats
             pos = raw[currentRow]['position'][1:-1].split(', ')
