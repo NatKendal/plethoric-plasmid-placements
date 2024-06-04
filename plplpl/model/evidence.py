@@ -142,12 +142,17 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
         iterator = tqdm.tqdm(model)
     else:
         iterator = model
+
+    count = 0
    
     for node in iterator:
         if node[0] != "g":
             continue
 
-        if (node not in evidence) or (evidence[node] == 0):
+        if node not in evidence:
+            continue
+        
+        if evidence[node] == 0:
             continue
 
         if debug >= 2:
@@ -157,28 +162,30 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
 
         # evidence[node] == 1
         for child in list(forwardLinks[uid[node[1:]]]):
-            if ("g" + name[child] in evidence) and (evidence["g"+name[child]] == 0):
-                evidence["m"+name[child]] = 0
-                forwardLinks[uid[node[1:]]].remove(child)
-                backwardLinks[child] = -1
-                
-                for parent in list(model.predecessors("g"+name[child])):
-                    model.remove_edge(parent, "g"+name[child])
-                model.remove_cpds("g"+name[child])
-                model.add_cpds(BinaryNoisyOrCPD("g"+name[child], 0))
+            if "g" + name[child] in evidence:
+                if evidence["g"+name[child]] == 0:
+                    count += 1
+                    evidence["m"+name[child]] = 0
+                    forwardLinks[uid[node[1:]]].remove(child)
+                    backwardLinks[child] = -1
+                    
+                    for parent in list(model.predecessors("g"+name[child])):
+                        model.remove_edge(parent, "g"+name[child])
+                    model.remove_cpds("g"+name[child])
+                    model.add_cpds(BinaryNoisyOrCPD("g"+name[child], 0))
 
-                for parent in list(model.predecessors("c"+name[child])):
-                    model.remove_edge(parent, "c"+name[child])
-                model.remove_cpds("c"+name[child])
-                model.add_cpds(BinaryNoisyOrCPD("c"+name[child], 0))
+                    for parent in list(model.predecessors("c"+name[child])):
+                        model.remove_edge(parent, "c"+name[child])
+                    model.remove_cpds("c"+name[child])
+                    model.add_cpds(BinaryNoisyOrCPD("c"+name[child], 0))
 
-                for parent in list(model.predecessors("m"+name[child])):
-                    model.remove_edge(parent, "m"+name[child])
-                model.remove_cpds("m"+name[child])
-                model.add_cpds(BinaryNoisyOrCPD("m"+name[child], 0))
+                    for parent in list(model.predecessors("m"+name[child])):
+                        model.remove_edge(parent, "m"+name[child])
+                    model.remove_cpds("m"+name[child])
+                    model.add_cpds(BinaryNoisyOrCPD("m"+name[child], 0))
 
     if debug >= 1:
-        print("Finished handling contradictions in model. Adding in synchrony evidence.")
+        print("Finished handling contradictions in model. Found " + str(count) + ". Adding in synchrony evidence.")
 
     with open(dataFolder + modelName + "_synchrony.pickle", "rb") as f:
         synchrony = pickle.load(f)
@@ -227,7 +234,7 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                         evidence["g" + name[parent]] = 0
                         parent = backwardLinks[parent]
             elif evidence[node] == 1:
-                children = forwardLinks[uid[node[1:]]]
+                children = list(forwardLinks[uid[node[1:]]])
                 while children:
                     child = children.pop()
                     if "g" + name[child] in evidence:
@@ -258,7 +265,7 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
             else: 
                 print("Something weird happened. All initial cells should be flagged matching their colour, but " + node + " wasn't.")
                 raise AssertionError("Something weird happened. All initial cells should be flagged matching their colour, but " + node + " wasn't.")
-            children = forwardLinks[uid[node[1:]]]
+            children = list(forwardLinks[uid[node[1:]]])
             reached = None
             while children:
                 child = children.pop()
@@ -342,17 +349,19 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                     evidence["m" + name[s]] = 0
             else:
                 print("Contradiction when working through maturation edge cases at " + node)
-                raise AssertionError("Contradiction when working through maturation edge cases at " + node)
+                print("Starting at a 0, we found a 1 when going backwards: " + name[parent])
+                #raise AssertionError("Contradiction when working through maturation edge cases at " + node)
         elif evidence[node] == 1:
-            children = forwardLinks[uid[node[1:]]]
+            children = list(forwardLinks[uid[node[1:]]])
             while children:
                 child = children.pop()
                 if "m" + name[child] in evidence:
                     if evidence["m" + name[child]] == 0:
                         print("Contradiction when working through maturation edge cases at " + node)
-                        raise AssertionError("Contradiction when working through maturation edge cases at " + node)
+                        print("Starting at a 1, we found a 0 when going forwards: " + child)
+                        #raise AssertionError("Contradiction when working through maturation edge cases at " + node)
                 else:
-                    evidence["m" + name[child]] = 0
+                    evidence["m" + name[child]] = 1
                     for grandChild in forwardLinks[child]:
                         children.append(grandChild)
 

@@ -11,7 +11,8 @@ def buildFunctions(location, force=False):
         ContactWeightsFixedNaive(),
         MaturationDelayFunctionNormal(),
         ColourDelayFunctionUniform(),
-        ContactWeightsBaseline()
+        ContactWeightsBaseline(),
+        MaturationDelayFunctionNormalShort()
     ]
 
     for function in functionList:

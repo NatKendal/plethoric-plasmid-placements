@@ -17,7 +17,7 @@ loadedEdgeList: if we should use an edge list already in memory instead of loadi
 loadedBackwardLinks: if we should use backward links already in memory instead of loading them.
 """
 
-# For efficiency, we normalize all m -> g edges in the model. This could be fixed to only modify relevant edges if desired.
+# For simplicity, we normalize all m -> g edges in the model. This could be fixed to only modify relevant edges if desired.
 def normalizeModel(modelFolder, dataFolder, modelName, modelExtension, conjugationFunctionPickleFile, normalizeTo=1.0, save=True, debug=0, progressBar=False, loadedModel=None, loadedEdgeList=None, loadedBackwardLinks=None):
     if progressBar:
         import tqdm
@@ -42,7 +42,7 @@ def normalizeModel(modelFolder, dataFolder, modelName, modelExtension, conjugati
     if loadedEdgeList:
         edgeList = loadedEdgeList
     else:
-        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_edgeList.pickle", "rb") as f:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_queryEdgeList.pickle", "rb") as f:
             edgeList = pickle.load(f)
 
     if debug >= 1:

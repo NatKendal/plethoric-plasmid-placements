@@ -29,6 +29,10 @@ completeConjugateQueries[query] = {"query":queryVariables, "critical":criticalRe
     - connectedUp: Other queries which have a maturation node pointed into a critical node of this query.
     - used: variables that are used in other queries in connectedDown
     - required: variables needed from queries in connectedUp
+
+
+The goal of the conjugate queries is to compute the probability
+P(Lineage receiving plasmid within critical range | not having plasmid before critical range AND observed status of rest of network) 
 """
 
 def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True, debug=0, progressBar=False, loadedModel=None, loadedEvidence=None, loadedForwardLinks=None, loadedBackwardLinks=None):
@@ -135,29 +139,59 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
         if progressBar:
             iterator.set_description("Working on building query " + query)
 
+        # The core query variables, the end of the critical range that evidence says must have the gene.
         queryVariables = set([query])
+        # The remaining variables in the critical range.
         criticalRegion = set(conjugationQueries[query])
-        queryEvidence = set()
+        # The colour nodes that constrain the possible assignments if they were included as evidence.
         queryForcedUnknown = set()
-        queryIncomingMature = set()
+        # The colour nodes that are relevant evidence to the query.
+        queryColourEvidence = set()
+        # All gene nodes downwards from the query variables.
+        queryLineage = set()
+        # Hidden nodes in the query, maturation nodes that aren't fixed by evidence.
         queryHidden = set()
+        # Nodes available in evidence for which the evidence is taken as fact. CPDs are implicitly changed.
+        queryHardEvidence = set()
+        # Maturation nodes not in evidence that point into gene nodes of the critical region/query variables.
+        queryIncomingMature = set()
+        # Other queries that this query's hidden nodes point into.
+        # These will be collapsed later using naive priors.
         connectedDownwardQueries = set()
-        queryUsed = set() # Used in another query.
-
+        # Gene nodes that have evidence = 0 but have a (potentially) active maturation node pointing into them.
+        # These have CPD implicitly reformulated to be exclusively in terms of relevant nodes.
+        queryDownwardGeneZero = set()
+ 
+        # First: handle the main query node.
         for child in model.successors(query):
-            queryForcedUnknown.add(child)
+            if child[0] == "c":
+                queryForcedUnknown.add(child)
+            elif child[0] == "g":
+                children = deque()
+                children.append(uid[child[1:]])
+                while children:
+                    print(len(children))
+                    grandChild = children.popleft()
+                    queryLineage.add("g" + name[grandChild])
+                    for greatGrandChild in forwardLinks[grandChild]:
+                        children.append(greatGrandChild)
+            elif child[0] == "m":
+                queryHidden.add(child)
+            else:
+                print("Something went wrong. Child wasn't a 'c', 'g', or 'm' node.")
+                print(child, query)
+
         for parent in model.predecessors(query):
             if parent[0] == "g":
                 continue
             elif parent in evidence:
                 allEdges.add((parent, query))
-                queryEvidence.add(parent)
+                queryHardEvidence.add(parent)
             else:
                 allEdges.add((parent, query))
-                queryHidden.add(parent)
                 queryIncomingMature.add(parent)
 
-        # First get all queries we will absorb.
+        # Second: get all queries we will absorb.
         queue = deque(conjugationQueries[query])
         while queue:
             critical = queue.popleft()
@@ -190,19 +224,31 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                             completeConjugateQueries[otherQuery]["connectedDown"].add(query)
 
                     for grandChild in model.successors(child):
-                        queryForcedUnknown.add(grandChild)
+                        if grandChild[0] == "c":
+                            queryForcedUnknown.add(grandChild)
+                        elif grandChild[0] == "g":
+                            children = deque()
+                            children.append(uid[child[1:]])
+                            while children:
+                                successor = children.popleft()
+                                queryLineage.add("g" + name[successor])
+                                for grandSuccessor in forwardLinks[successor]:
+                                    children.append(grandSuccessor)
+                        elif grandChild[0] == "m":
+                            queryHidden.add(child)
+                        else:
+                            print("Something went wrong. Child wasn't a 'c', 'g', or 'm' node.")
                     for predecessor in model.predecessors(child):
                         if predecessor[0] == "g":
                             continue
                         elif predecessor in evidence:
                             allEdges.add((predecessor, child))
-                            queryEvidence.add(predecessor)
+                            queryHardEvidence.add(predecessor)
                         else:
                             allEdges.add((predecessor, child))
-                            queryHidden.add(predecessor)
                             queryIncomingMature.add(predecessor)
 
-        # Next, we handle the complete critical region.
+        # Third: we handle the complete critical region.
         queue = deque(criticalRegion)
         while queue:
             critical = queue.popleft()
@@ -211,139 +257,106 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                     continue
                 if child[0] == "g":
                     continue
+                elif child[0] == "c":
+                    queryColourEvidence.add(child)
                 elif child[0] == "m":
                     if child in evidence:
                         print("Model expected no evidence but found it at query " + query + " " + critical + " " + child)
                         raise ValueError("Model expected no evidence but found it at query " + query + " " + critical + " " + child)
-                    if child in queryHidden:
-                        continue
                     queryHidden.add(child)
-                    for grandChild in model.successors(child):
-                        if grandChild[0] != "g":
-                            continue
-                        if grandChild in evidence:
-                            if evidence[grandChild] == 0:
-                                # If it's a zero, then other incoming events aren't correlated.
-                                allEdges.add((child, grandChild))
-                                queryEvidence.add(grandChild)
-                                continue
-                            if backwardLinks[uid[grandChild[1:]]] == -1:
-                                # This shouldn't happen, but in case it does, we can just ignore it.
-                                continue
-                            if ("g" + name[backwardLinks[uid[grandChild[1:]]]] in evidence) and (evidence["g" + name[backwardLinks[uid[grandChild[1:]]]]] == 1):
-                                # If its parent had the gene, then incoming events are of no consequence.
-                                continue
-                            # evidence[grandChild] = 1 and parent doesn't. It's a query node exactly.
-                            allEdges.add((child, grandChild))
-                            # queryEvidence.add(grandChild) probably not needed here.
-                            for otherQuery in conjugationQueries.keys():
-                                if grandChild in conjugationQueries[otherQuery] or grandChild == otherQuery:
-                                    target = otherQuery
-                                    if otherQuery in queryVariables:
-                                        target = query
-                                    elif otherQuery in absorbedQueries:
-                                        for key in completeConjugateQueries.keys():
-                                            if otherQuery in completeConjugateQueries[key]["query"]:
-                                                target = key
-                                                break
-                                    if (target != query):
-                                        connectedDownwardQueries.add(target)
-                                        queryUsed.add(child)
-                                    else:
-                                        # This is a self loop, but that's probably fine.
-                                        # Previously threw an error but this case *does* occur.
-                                        # Need to ensure that such cases are handled properly later.
-                                        pass
-                                    break
-                            else:
-                                print("Node " + grandChild + " looks like a query node, but isn't.")
-                                raise AssertionError("Node " + grandChild + " looks like a query node, but isn't.")
-                        else:
-                            allEdges.add((child, grandChild))
-                            for otherQuery in conjugationQueries.keys():
-                                if grandChild in conjugationQueries[otherQuery]:
-                                    target = otherQuery
-                                    if otherQuery in queryVariables:
-                                        target = query
-                                    elif otherQuery in absorbedQueries:
-                                        for key in completeConjugateQueries.keys():
-                                            if otherQuery in completeConjugateQueries[key]["query"]:
-                                                target = key
-                                                break
-                                    if (target != query):
-                                        connectedDownwardQueries.add(target)
-                                        queryUsed.add(child)
-                                    else:
-                                        # This is a self loop, but that's probably fine.
-                                        # Previously threw an error but this case *does* occur.
-                                        # Need to ensure that such cases are handled properly later.
-                                        pass
-                                    break
-                            else:
-                                print("At " + critical + " " + child + " we have that " + grandChild + " should be in a critical region, but isn't.")
-                                raise AssertionError("At " + critical + " " + child + " we have that " + grandChild + " should be in a critical region, but isn't.")
-                else:
-                    # child[0] == "c"
-                    queryEvidence.add(child)
             for parent in model.predecessors(critical):
                 if parent in criticalRegion:
                     continue
                 elif parent in evidence:
                     if parent[0] == "m":
                         allEdges.add((parent, critical))
-                    queryEvidence.add(parent)
+                    queryHardEvidence.add(parent)
                 elif parent[0] == "m":
                     allEdges.add((parent, critical))
-                    queryHidden.add(parent)
                     queryIncomingMature.add(parent)
                 else:
                     print("Shouldn't get here. Something went wrong when looking at " + query + " " + critical + " " + parent)
                     raise AssertionError("Shouldn't get here. Something went wrong when looking at " + query + " " + critical + " " + parent)
 
-        completeConjugateQueries[query] = {"query":queryVariables, "critical":criticalRegion, "evidence":queryEvidence, "unknown":queryForcedUnknown, "connectedDown":connectedDownwardQueries, "hidden":queryHidden.difference(queryForcedUnknown),  "incoming":queryIncomingMature.difference(queryForcedUnknown), "virtual":set(), "connectedUp":set(), "used":queryUsed, "required":set()}
+        # Fourth: get all relevant downstream consequences.
+        for node in queryLineage:
+            for child in model.successors(node):
+                if child[0] == "g":
+                    continue
+                elif child[0] == "c":
+                    queryForcedUnknown.add(child)
+                elif child[0] == "m":
+                    queryHidden.add(child)
+                else:
+                    print("Something went wrong, child " + child + " wasn't a 'c', 'g', or 'm' node.")
 
-    if debug >= 1:
-        print("Finished building naive queries. Calculating connected queries.")
-
-    if progressBar:
-        iterator = tqdm.tqdm(list(completeConjugateQueries.keys()))
-    else:
-        iterator = list(completeConjugateQueries.keys())
-    for query in iterator:
-        if debug >= 2:
-            print("Working on " + query)
-        if progressBar:
-            iterator.set_description("Working on " + query)
-
-        for otherQuery in list(completeConjugateQueries.keys()):
-            if otherQuery == query:
-                continue
-
-            required = completeConjugateQueries[query]["incoming"].intersection(completeConjugateQueries[otherQuery]["used"])
-            if required:
-                completeConjugateQueries[query]["connectedUp"].add(otherQuery)
-                completeConjugateQueries[query]["incoming"] = completeConjugateQueries[query]["incoming"].difference(required)
-                completeConjugateQueries[query]["required"] = completeConjugateQueries[query]["required"].union(required)
-                # Could save which query these are from here. Might help?
-
-            virtual = completeConjugateQueries[query]["incoming"].intersection(completeConjugateQueries[otherQuery]["unknown"])
-            if virtual:
-                completeConjugateQueries[query]["incoming"] = completeConjugateQueries[query]["incoming"].difference(virtual)
-                completeConjugateQueries[query]["virtual"] = completeConjugateQueries[query]["virtual"].union(virtual)
-         
-        for incoming in list(completeConjugateQueries[query]["incoming"]):
-            for parent in model.predecessors(incoming):
-                if (parent[0] != "m") and (parent not in evidence):
-                    print("Incoming node " + incoming + " of query " + query + " can't be computed as virtual evidence and also is not in a query.")
-                    raise AssertionError("Incoming node " + incoming + " of query " + query + " can't be computed as virtual evidence and also is not in a query.")
-            completeConjugateQueries[query]["virtual"].add(incoming)
-            completeConjugateQueries[query]["incoming"].remove(incoming)
-            
-        if len(completeConjugateQueries[query]["incoming"]) != 0:
-            print("Some incoming mature nodes aren't accounted for in " + query)
-            print(completeConjugateQueries[query]["incoming"])
-            raise AssertionError("Some incoming mature nodes aren't accounted for in " + query)
+        # Fifth: We expand all the hidden nodes.
+        for hidden in queryHidden:
+            for grandChild in model.successors(hidden):
+                if grandChild[0] != "g":
+                    continue
+                if grandChild in evidence:
+                    if evidence[grandChild] == 0:
+                        # If it's a zero, then other incoming events aren't correlated.
+                        allEdges.add((hidden, grandChild))
+                        queryDownwardGeneZero.add(grandChild)
+                        continue
+                    if backwardLinks[uid[grandChild[1:]]] == -1:
+                        # This shouldn't happen, it occurred due to a bug that was thought to be resolved.
+                        print("The problem, where we add a connection where it shouldn't, came up again.")
+                    if ("g" + name[backwardLinks[uid[grandChild[1:]]]] in evidence) and (evidence["g" + name[backwardLinks[uid[grandChild[1:]]]]] == 1):
+                        # If its parent had the gene, then incoming events are of no consequence.
+                        continue
+                    # evidence[grandChild] = 1 and parent doesn't. It's a query node exactly.
+                    allEdges.add((hidden, grandChild))
+                    for otherQuery in conjugationQueries.keys():
+                        if grandChild in conjugationQueries[otherQuery] or grandChild == otherQuery:
+                            target = otherQuery
+                            if otherQuery in queryVariables:
+                                target = query
+                            elif otherQuery in absorbedQueries:
+                                for key in completeConjugateQueries.keys():
+                                    if otherQuery in completeConjugateQueries[key]["query"]:
+                                        target = key
+                                        break
+                            if (target != query):
+                                connectedDownwardQueries.add(target)
+                            else:
+                                # This is a self loop, but that's probably fine.
+                                # Previously threw an error, but this case *does* occur.
+                                # Need to ensure that such cases are handled properly later.
+                                pass
+                            break
+                    else:
+                        print("Node " + grandChild + " looks like a query node, but isn't.")
+                        raise AssertionError("Node " + grandChild + " looks like a query node, but isn't.")
+                else:
+                    # This node is in the critical region of another query.
+                    allEdges.add((hidden, grandChild))
+                    for otherQuery in conjugationQueries.keys():
+                        if grandChild in conjugationQueries[otherQuery]:
+                            target = otherQuery
+                            if otherQuery in queryVariables:
+                                target = query
+                            elif otherQuery in absorbedQueries:
+                                for key in completeConjugateQueries.keys():
+                                    if otherQuery in completeConjugateQueries[key]["query"]:
+                                        target = key
+                                        break
+                            if (target != query):
+                                connectedDownwardQueries.add(target)
+                            else:
+                                # This is a self loop, but that's probably fine.
+                                # Previously threw an error but this case *does* occur.
+                                # Need to ensure that such cases are handled properly later.
+                                pass
+                            break
+                    else:
+                        print("At " + hidden + " we have that " + grandChild + " should be in a critical region, but isn't.")
+                        raise AssertionError("At " + hidden + " we have that " + grandChild + " should be in a critical region, but isn't.")
     
+        completeConjugateQueries[query] = {"query":queryVariables, "critical":criticalRegion, "unknown":queryForcedUnknown, "colourEvidence":queryColourEvidence, "lineage":queryLineage, "hidden":queryHidden, "hardEvidence":queryHardEvidence, "incoming":queryIncomingMature, "connectedDown":connectedDownwardQueries, "downwardZero":queryDownwardGeneZero}
+
     for query in list(completeConjugateQueries.keys()):
         for key in completeConjugateQueries[query].keys():
             completeConjugateQueries[query][key] = list(completeConjugateQueries[query][key])
@@ -384,11 +397,13 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
             nonConjugateQueries[node].append(parent)
 
     if save:
+        if debug >= 1:
+            print("Saving conjugate queries, nonconjugate queries, and all relevant edges.")
         with open(modelFolder + modelName + "_modeldata" + modelExtension + "_completeConjugateQueries.pickle", "wb") as f:
             pickle.dump(completeConjugateQueries, f)
         with open(modelFolder + modelName + "_modeldata" + modelExtension + "_nonConjugateQueries.pickle", "wb") as f:
             pickle.dump(nonConjugateQueries, f)
-        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_edgeList.pickle", "wb") as f:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_queryEdgeList.pickle", "wb") as f:
             pickle.dump(sorted(list(allEdges)), f)
 
     return completeConjugateQueries, nonConjugateQueries, sorted(list(allEdges))
