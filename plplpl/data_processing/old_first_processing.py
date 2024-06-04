@@ -47,25 +47,28 @@ def readFile(filename):
 
             # then, add everything to the main dictionary
             raw[currentRow] = {
-                            'step': int(row[0]),  
-                            'cellId': int(row[28]),
-                            'lineage': int(float(row[16])),
-                            'cellAge': row[50],
-                            'growthRate': row[51],
-                            'lifetime': row[35],
-                            'startLength': row[52],
-                            'endLength': row[53],
-                            'parentCellId': int(row[37]),
-                            'position': row[54],
-                            'width': float(row[56]),
-                            'length': float(row[5]),
-                            'ends': row[58],
-                            'orientation': row[57],
-                            'elongationRate': float(row[59]),
-                            'avgElongationRate': row[60],
-                            'gfp': float(row[61]),
-                            'rfp': float(row[62]),
-                            'flag': int(row[63])}
+                            'step': int(row[0]), 
+                            #'objectNum': row[1], 
+                            'cellId': int(row[2]),
+                            'lineage': int(float(row[3])),
+                            #'divideFlag': row[4],
+                            'cellAge': row[5],
+                            'growthRate': row[6],
+                            'lifetime': row[7],
+                            'startLength': row[8],
+                            'endLength': row[9],
+                            'parentCellId': int(row[10]),
+                            'position': row[11],
+                            #'time': row[12],
+                            'width': float(row[13]),
+                            'length': float(row[14]),
+                            'ends': row[15],
+                            'orientation': row[16],
+                            'elongationRate': float(row[17]),
+                            'avgElongationRate': row[18],
+                            'gfp': float(row[19]),
+                            'rfp': float(row[20]),
+                            'flag': int(row[21])}
 
             # make things into ints/floats
             pos = raw[currentRow]['position'][1:-1].split(', ')
