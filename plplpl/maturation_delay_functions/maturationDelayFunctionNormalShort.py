@@ -69,9 +69,9 @@ def getMaturationWeights(time, edge_vals, step_length = 5):
     else:
         return edge_vals[time]
 
-class MaturationDelayFunctionNormal(BaseDelayFunction):
-    def __init__(self):
+class MaturationDelayFunctionNormalShort(BaseDelayFunction):
+    def __init__(self, paramater):
         cdf_vals, min_val, max_val = calcCdfValues()
         edge_vals = calcMaturationWeights(cdf_vals)
         edge_vals[max_val] = 1.0
-        super().__init__("maturationDelayFunctionNormal", 2, ["m"], {"maturation_min":min_val, "maturation_max":max_val}, min_val, max_val, edge_vals)
+        super().__init__("maturationDelayFunctionNormalShort", 2, ["m"], {"maturation_min":min_val, "maturation_max":max_val}, min_val, max_val, edge_vals)
