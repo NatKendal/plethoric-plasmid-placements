@@ -13,6 +13,10 @@ class NoisyOrBayesianNetwork(BayesianNetwork):
     @property
     def cpds(self):
         return list(self.cpds_dict.values())
+    @cpds.setter
+    def cpds(self, arraylike):
+        for cpd in arraylike:
+            self.add_cpds(cpd)
 
     #
     # Overrides:
@@ -29,6 +33,7 @@ class NoisyOrBayesianNetwork(BayesianNetwork):
 
             if cpd.variable in self.cpds_dict:
                 logger.warning(f"Replacing existing CPD for {cpd.variable}")
+
             self.cpds_dict[cpd.variable] = cpd
 
     # Adapted from pgmpy.BayesianNetwork.remove_cpds. Remove CPDs from dictionary instead of list.
@@ -37,7 +42,7 @@ class NoisyOrBayesianNetwork(BayesianNetwork):
             if isinstance(cpd, (str, int)):
                 if cpd not in self.cpds_dict:
                     raise ValueError("CPD " + str(cpd) + " not in model.")
-                self.cpds_dict.pop("cpd")
+                self.cpds_dict.pop(cpd)
             elif isinstance(cpd, self._validCPDTypes):
                 if cpd.variable in self.cpds_dict:
                     if cpd == self.cpds_dict[cpd.variable]:

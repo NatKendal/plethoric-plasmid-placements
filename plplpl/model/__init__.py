@@ -4,6 +4,7 @@ from .model_builder import addDelayFunctionToModel
 from .model_builder import addConjugationFunctionToModel
 from .queries import build_queries
 from .normalize import normalizeModel
+from .naive_probabilities import calculateNaiveProbabilities
 
 __all__ = [
     "get_evidence",
@@ -11,5 +12,6 @@ __all__ = [
     "addDelayFunctionToModel",
     "addConjugationFunctionToModel",
     "build_queries",
-    "normalizeModel"
+    "normalizeModel",
+    "calculateNaiveProbabilities"
 ]

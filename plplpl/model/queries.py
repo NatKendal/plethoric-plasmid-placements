@@ -170,7 +170,6 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                 children = deque()
                 children.append(uid[child[1:]])
                 while children:
-                    print(len(children))
                     grandChild = children.popleft()
                     queryLineage.add("g" + name[grandChild])
                     for greatGrandChild in forwardLinks[grandChild]:

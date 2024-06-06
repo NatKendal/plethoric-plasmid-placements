@@ -151,6 +151,23 @@ class BinaryNoisyOrCPD(TabularCPD):
             values.append(self.get_value(**{self.variables[i]:assignment[i] for i in range(len(assignment))}))
         return np.reshape(np.array(values), (self.cardinality[0], np.prod(self.cardinality[1:])))
 
+    # Calculate the probabilities of each state of cpd.variable given a probability of being 1 for each evidence variable. 
+    def get_self_values_with_uncertain_evidence(self, **kwargs):
+        # Check if all evidence variables are assigned.
+        if self.variable in kwargs:
+            raise ValueError("Can't get probability of each assignment to " + str(self.variable) + " if it's assigned.")
+        for variable in self.evidence:
+            if variable not in kwargs:
+                raise ValueError("List of states is missing variable: " + str(variable))
+
+        # Initial failure probability.
+        failureChance = 1.0 - self.internalProbability
+
+        # Compute weighted probability that each other check fails.
+        for i in range(len(self.evidence)):
+            failureChance = failureChance * (1.0 - self.evidence_noise[i] * kwargs[self.evidence[i]])
+
+        return [[failureChance], [1-failureChance]]
     
     #
     # Overrides:

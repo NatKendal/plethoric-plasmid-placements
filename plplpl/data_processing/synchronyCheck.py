@@ -178,10 +178,12 @@ def saveSynchronyCertainty(dataFolder, modelName, save=True):
     certain = getFirstCertain(cells,colours,forwardLinks,synchrony,tol=TOLERANCE)
 
     allGreenCertain = getAllGreenCertain(certain,colours,forwardLinks)
+    
+    allCertain = getAllCertain(certain, byStep, backwardLinks)
 
     if save:
         with open(dataFolder + modelName + "_synchrony.pickle", "wb") as f:
-            pickle.dump(allGreenCertain, f)
+            pickle.dump(allCertain, f)
 
     return allGreenCertain
 

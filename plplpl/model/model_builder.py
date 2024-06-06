@@ -192,12 +192,11 @@ def addDelayFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, 
                 evidence_noise.append(delayFunction.weight(timestep - int(predecessor.split("_")[1])))
             else:
                 evidence_noise.append(1.0)
-        # NOTE: We are forcefully adding CPDs to the model here. Trading safety for speed.
-        # 8 hours -> 30 seconds
-        if safeMode:
+
+        if safeMode: # This is slow, but does enhanced checks.
             model.add_cpds(BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise))
-        else:
-            model.cpds.append(BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise))
+        else: # Faster, but directly editing the model.
+            model.cpds_dict[node] = BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise)
 
     if debug >= 1:
         print("Finished adding CPDs.")
@@ -288,11 +287,10 @@ def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExten
                 evidence.append(predecessor)
                 evidence_noise.append(1.0)
 
-        # NOTE: We are forcefully adding CPDs to the model here. Trading safety for speed.
-        if safeMode:
+        if safeMode: # This is slow, but does enhanced checks.
             model.add_cpds(BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise))
-        else:
-            model.cpds.append(BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise))
+        else: # Faster, but directly editing the model.
+            model.cpds_dict[node] = BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise)
 
     if debug >= 1:
         print("Finished adding CPDs.")
