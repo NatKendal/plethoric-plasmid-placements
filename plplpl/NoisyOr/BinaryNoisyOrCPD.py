@@ -86,7 +86,7 @@ class BinaryNoisyOrCPD(TabularCPD):
         self.variables.extend(evidence)
         self.cardinality = np.array([2]*(len(evidence) + 1))
         self.evidence_noise = evidence_noise
-        #self.savedValues = dict()
+        self.savedValues = dict()
 
         # Setup maximum table size.
         self.maxTableSize = maxTableSize
@@ -124,9 +124,9 @@ class BinaryNoisyOrCPD(TabularCPD):
             if variable not in kwargs:
                 raise ValueError("List of states is missing variable: " + str(variable))
 
-        #assignment = tuple([kwargs[var] for var in self.variables])
-        #if assignment in self.savedValues:
-        #    return savedValues[assignment]
+        assignment = tuple([kwargs[var] for var in self.variables])
+        if assignment in self.savedValues:
+            return self.savedValues[assignment]
 
         # Initial failure probability.
         failureChance = 1.0 - self.internalProbability
@@ -137,8 +137,12 @@ class BinaryNoisyOrCPD(TabularCPD):
                 failureChance = failureChance * (1.0 - self.evidence_noise[i])
 
         if self.get_state(self.variable, kwargs[self.variable]) == 1:
+            self.savedValues[assignment] = 1.0 - failureChance
+            self.savedValues[(0,) + assignment[1:]] = failureChance
             return 1.0 - failureChance
         else:
+            self.savedValues[assignment] = failureChance
+            self.savedValues[(1,) + assignment[1:]] = 1.0 - failureChance
             return failureChance
 
     # Calculate the probability of this variable given state assignments to evidence.

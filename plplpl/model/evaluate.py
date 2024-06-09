@@ -6,6 +6,7 @@ from pgmpy.factors import factor_product
 
 from plplpl.NoisyOr import BinaryNoisyOrCPD
 from plplpl.NoisyOr import NoisyOrBayesianNetwork
+from plplpl.NoisyOr import NoisyOrFactor
 
 """
 modelFolder: path to directory
@@ -343,15 +344,17 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
             fixedFactors = list()
             for cpd in criticalNodeReducedCPDs:
                 for parent in cpd.evidence:
-                    toMarginalize.add(parent)
-                factor = cpd.to_factor()
-                factor.reduce([(cpd.variable, (0 if cpd.variable in assignment else 1))], inplace=True)
+                    fixedToMarginalize.add(parent)
+                #factor = cpd.to_factor()
+                #factor.reduce([(cpd.variable, (0 if cpd.variable in assignment else 1))], inplace=True)
+                factor = NoisyOrFactor("reduce", [cpd], argument=[(cpd.variable, (0 if cpd.variable in assignment else 1))])
                 fixedFactors.append(factor)
             for cpd in switchPointCPDs:
                 for parent in cpd.evidence:
-                    toMarginalize.add(parent)
-                factor = cpd.to_factor()
-                factor.reduce([(cpd.variable, 1)], inplace=True)
+                    fixedToMarginalize.add(parent)
+                #factor = cpd.to_factor()
+                #factor.reduce([(cpd.variable, 1)], inplace=True)
+                factor = NoisyOrFactor("reduce", [cpd], argument=[(cpd.variable, 1)])
                 fixedFactors.append(factor)
 
             maturationAssignments = list(itertools.product(*[assignmentHelper(model, x, maturationEndpoints, "m", includeDeadEnds=True) for x in maturationStartpoints]))
@@ -426,17 +429,21 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                                     values[cpd.evidence[j]] = 0
                                 else:
                                     values[cpd.evidence[j]] = 1
-                        reducedBlockCPDs.append(cpd.reduce([(key, value) for key, value in values.items()], inplace=False))
+                        #reducedBlockCPDs.append(cpd.reduce([(key, value) for key, value in values.items()], inplace=False))
                         if cpd.variable in downwardQueryEvidence[i]:
                             toReduce.append(cpd.variable)
                         else:
                             toMarginalize.append(cpd.variable)
-                    factor = reducedBlockCPDs[0].to_factor()
-                    for cpd in reducedBlockCPDs[1:]:
-                        factor = factor * cpd.to_factor()
-                    factor.reduce([(x, 1) for x in toReduce], inplace=True)
-                    factor.marginalize(toMarginalize, inplace=True)
-                    downwardQueryFactors.append(factor)
+                        reducedBlockCPDs.append(NoisyOrFactor("reduce", [cpd], [(key, value) for key, value in values.items()]))
+                    factor = NoisyOrFactor("product", reducedBlockCPDs)
+                    factor2 = NoisyOrFactor("reduce", [factor], [(x, 1) for x in toReduce])
+                    factor3 = NoisyOrFactor("marginalize", [factor2], toMarginalize)
+                    #factor = reducedBlockCPDs[0].to_factor()
+                    #for cpd in reducedBlockCPDs[1:]:
+                    #    factor = factor * cpd.to_factor()
+                    #factor.reduce([(x, 1) for x in toReduce], inplace=True)
+                    #factor.marginalize(toMarginalize, inplace=True)
+                    downwardQueryFactors.append(factor3)
 
                 if progressBar:
                     nestedNestedIterator.set_description(desc="(4) Working on " + str(nestedNestedCounter) + " of " + str(len(maturationAssignments)))
@@ -461,15 +468,18 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                             toMultiply.append(factor)
                         else:
                             newFactors.append(factor)
-                    combinedFactor = factor_product(*toMultiply)
-                    combinedFactor.marginalize([variable], inplace=True)
-                    newFactors.append(combinedFactor)
+                    combinedFactor = NoisyOrFactor("product", toMultiply)
+                    combinedFactor2 = NoisyOrFactor("marginalize", [combinedFactor], argument=[variable])
+                    newFactors.append(combinedFactor2)
                     allFactors = newFactors
+
+                if progressBar:
+                    nestedNestedIterator.set_description(desc="(5) Working on " + str(nestedNestedCounter) + " of " + str(len(maturationAssignments)))
 
                 # All variables should be eliminated as this point.
                 # All these factors should just be constants.
                 for factor in allFactors:
-                    finalProbability = finalProbability * factor.values
+                    finalProbability = finalProbability * factor.get_value()
 
                 overallProbability = overallProbability + finalProbability
             
