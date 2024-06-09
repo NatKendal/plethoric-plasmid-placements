@@ -16,7 +16,7 @@ def calcCdfValues(avg=80, std=20, step_length = 5):
     std = math.ceil(std/step_length)
 
     min_val = avg - 3 * std 
-    max_val = avg + 2 * std 
+    max_val = avg + 1 * std 
 
     assert min_val > 0, "minimum maturation time is less than 0"
 
@@ -70,7 +70,7 @@ def getMaturationWeights(time, edge_vals, step_length = 5):
         return edge_vals[time]
 
 class MaturationDelayFunctionNormalShort(BaseDelayFunction):
-    def __init__(self, paramater):
+    def __init__(self):
         cdf_vals, min_val, max_val = calcCdfValues()
         edge_vals = calcMaturationWeights(cdf_vals)
         edge_vals[max_val] = 1.0

@@ -167,8 +167,8 @@ def addDelayFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, 
     with open(delayFunctionPickleFile, "rb") as f:
         delayFunction = pickle.load(f)
 
-    if not delayFunction.checkConstants(model):
-        raise ValueError("Constant mismatch between model and delayFunction.")
+    if not delayFunction.checkConstants(model, debug=True):
+        raise ValueError("Constant mismatch between model and delayFunction." )
 
     if debug >= 1:
         print("Computing CPDs and adding to model.")

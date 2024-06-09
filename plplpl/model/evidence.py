@@ -261,7 +261,8 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                         evidence["g"+name[s]] = 1
                     continue
                 elif evidence["g"+name[parent]] == 0:
-                    seen.append(parent)
+                    pass
+                    #seen.append(parent)
             else: 
                 print("Something weird happened. All initial cells should be flagged matching their colour, but " + node + " wasn't.")
                 raise AssertionError("Something weird happened. All initial cells should be flagged matching their colour, but " + node + " wasn't.")
@@ -287,10 +288,12 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                 # Found a critical region. Do nothing.
                 continue
             elif reached == None:
-                for s in seen:
-                    evidence["g"+name[s]] = 0
+                pass
+                #for s in seen:
+                #    evidence["g"+name[s]] = 0
                 # This case assumes that cells lost before they change colour never got the plasmid.
                 # Technically not guaranteed, but no evidence to the alternative exists.
+                # Conclusion: Leave here, correct for it later.
 
     if debug >= 1:
         print("Finished cleaning up edge cases. Starting to add maturation evidence.")

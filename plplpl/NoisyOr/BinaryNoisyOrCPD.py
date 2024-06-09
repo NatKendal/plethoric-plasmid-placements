@@ -4,6 +4,7 @@ import numpy as np
 
 from pgmpy import config
 from pgmpy.factors.discrete import TabularCPD
+from pgmpy.factors.discrete import DiscreteFactor
 from pgmpy.global_vars import logger
 
 class NoisyOrValues(object):
@@ -19,7 +20,7 @@ class NoisyOrValues(object):
         return np.prod(self.reference.cardinality)
 
     def __array__(self):
-        return np.reshape(self.reference.get_values(), self.reference.cardinality)
+        return np.reshape(self.reference.get_values(), tuple(self.reference.cardinality))
 
 
 class BinaryNoisyOrCPD(TabularCPD):
@@ -85,6 +86,7 @@ class BinaryNoisyOrCPD(TabularCPD):
         self.variables.extend(evidence)
         self.cardinality = np.array([2]*(len(evidence) + 1))
         self.evidence_noise = evidence_noise
+        #self.savedValues = dict()
 
         # Setup maximum table size.
         self.maxTableSize = maxTableSize
@@ -94,6 +96,9 @@ class BinaryNoisyOrCPD(TabularCPD):
 
         # Set values to be a special interface back into this object.
         self.values = NoisyOrValues(self)
+
+        # Properly setup state names.
+        self.store_state_names(self.variables, self.cardinality, state_names)
 
     # Helper function to interpret a state name back to a state number.
     def get_state(self, variable, state):
@@ -118,6 +123,10 @@ class BinaryNoisyOrCPD(TabularCPD):
         for variable in self.evidence:
             if variable not in kwargs:
                 raise ValueError("List of states is missing variable: " + str(variable))
+
+        #assignment = tuple([kwargs[var] for var in self.variables])
+        #if assignment in self.savedValues:
+        #    return savedValues[assignment]
 
         # Initial failure probability.
         failureChance = 1.0 - self.internalProbability
@@ -149,7 +158,7 @@ class BinaryNoisyOrCPD(TabularCPD):
         values = []
         for assignment in itertools.product(*[range(card) for card in self.cardinality]):
             values.append(self.get_value(**{self.variables[i]:assignment[i] for i in range(len(assignment))}))
-        return np.reshape(np.array(values), (self.cardinality[0], np.prod(self.cardinality[1:])))
+        return np.reshape(np.array(values), tuple([self.cardinality[0], int(np.prod(self.cardinality[1:]))]))
 
     # Calculate the probabilities of each state of cpd.variable given a probability of being 1 for each evidence variable. 
     def get_self_values_with_uncertain_evidence(self, **kwargs):
@@ -168,7 +177,7 @@ class BinaryNoisyOrCPD(TabularCPD):
             failureChance = failureChance * (1.0 - self.evidence_noise[i] * kwargs[self.evidence[i]])
 
         return [[failureChance], [1-failureChance]]
-    
+
     #
     # Overrides:
     #
@@ -184,13 +193,16 @@ class BinaryNoisyOrCPD(TabularCPD):
     def to_factor(self):
         factor = DiscreteFactor.__new__(DiscreteFactor)
         factor.variables = self.variables.copy()
-        factor.cardinality = self.cardinality.copy()
+        factor.cardinality = np.array(self.cardinality).copy()
         factor.values = np.array(self.values).copy()
         factor.state_names = self.state_names.copy()
         factor.name_to_no = self.name_to_no.copy()
         factor.no_to_name = self.no_to_name.copy()
         return factor
-    
+
+    def copy(self):
+        return BinaryNoisyOrCPD(self.variable, self.internalProbability, evidence=self.evidence.copy(), evidence_noise=self.evidence_noise.copy(), maxTableSize=self.maxTableSize, state_names=self.state_names.copy(), debug=self.debug)
+
     #
     # CPD Functions:
     #
@@ -210,3 +222,71 @@ class BinaryNoisyOrCPD(TabularCPD):
                 del self.evidence_noise[i]
                 del self.variables[i+1]
                 self.cardinality = np.delete(self.cardinality, i+1)
+
+    # Reduce/restrict to a subset of the original variables.
+    # Expects values as an arraylike of (variable_name, variable_state).
+    def reduce(self, values, inplace=True, show_warnings=True):
+        # Get the assignment from the values.
+        assignment = dict()
+        toDelete = set()
+        for variable, state in values:
+            if variable == self.variable:
+                raise ValueError("Reduce not allowed on variable on which CPD is defined")
+            assignment[variable] = state
+            toDelete.add(variable)
+        # Build the assignment.
+        for variable in self.variables:
+            if variable in assignment:
+                continue
+            elif variable == self.variable:
+                assignment[variable] = 1
+            else:
+                assignment[variable] = 0
+        # Calculate the assignment and replace the internal probability.
+        phi = self if inplace else self.copy()
+        phi.internalProbability = phi.get_value(**assignment)
+        phi.variables = [var for var in phi.variables if var not in toDelete]
+        newEvidence = []
+        newEvidenceNoise = []
+        for i in range(len(phi.evidence)):
+            if phi.evidence[i] not in toDelete:
+                newEvidence.append(phi.evidence[i])
+                newEvidenceNoise.append(phi.evidence_noise[i])
+        phi.evidence = newEvidence
+        phi.evidence_noise = newEvidenceNoise
+        phi.cardinality = [2]*len(phi.variables)
+        return phi
+
+    # Reduce/restrict to a subset of the original values.
+    # Expects values as an arraylike of (variable_name, probability_of_being_one).
+    def reduce_with_uncertain_evidence(self, values, inplace=True, show_warnings=True):
+        # Get the assignment from the values.
+        assignment = dict()
+        toDelete = set()
+        for variable, probability in values:
+            if variable == self.variable:
+                raise ValueError("Reduce not allowed on variable on which CPD is defined")
+            assignment[variable] = probability
+            toDelete.add(variable)
+        # Build the assignment.
+        for variable in self.variables:
+            if variable in assignment:
+                continue
+            elif variable == self.variable:
+                continue
+            else:
+                assignment[variable] = 0
+        # Calculate the assignment and replace the internal probability.
+        phi = self if inplace else self.copy()
+        phi.internalProbability = phi.get_self_values_with_uncertain_evidence(**assignment)[1][0]
+        phi.variables = [var for var in phi.variables if var not in toDelete]
+        newEvidence = []
+        newEvidenceNoise = []
+        for i in range(len(phi.evidence)):
+            if phi.evidence[i] not in toDelete:
+                newEvidence.append(phi.evidence[i])
+                newEvidenceNoise.append(phi.evidence_noise[i])
+        phi.evidence = newEvidence
+        phi.evidence_noise = newEvidenceNoise
+        phi.cardinality = [2]*len(phi.variables)
+        return phi

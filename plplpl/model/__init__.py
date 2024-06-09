@@ -5,6 +5,7 @@ from .model_builder import addConjugationFunctionToModel
 from .queries import build_queries
 from .normalize import normalizeModel
 from .naive_probabilities import calculateNaiveProbabilities
+from .evaluate import evaluateModel
 
 __all__ = [
     "get_evidence",
@@ -13,5 +14,6 @@ __all__ = [
     "addConjugationFunctionToModel",
     "build_queries",
     "normalizeModel",
-    "calculateNaiveProbabilities"
+    "calculateNaiveProbabilities",
+    "evaluateModel"
 ]

@@ -157,7 +157,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
         queryIncomingMature = set()
         # Other queries that this query's hidden nodes point into.
         # These will be collapsed later using naive priors.
-        connectedDownwardQueries = set()
+        connectedDownwardQueries = dict()
         # Gene nodes that have evidence = 0 but have a (potentially) active maturation node pointing into them.
         # These have CPD implicitly reformulated to be exclusively in terms of relevant nodes.
         queryDownwardGeneZero = set()
@@ -191,9 +191,14 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                 queryIncomingMature.add(parent)
 
         # Second: get all queries we will absorb.
+        seen = set()
         queue = deque(conjugationQueries[query])
         while queue:
             critical = queue.popleft()
+            if critical in seen:
+                continue
+            else:
+                seen.add(critical)
             for child in model.successors(critical):
                 if child in queryForcedUnknown:
                     continue
@@ -204,7 +209,6 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                 elif child in queryVariables:
                     continue
                 elif child not in evidence:
-                    criticalRegion.add(child)
                     queue.append(child)
                 else:
                     # Found a query to absorb
@@ -212,15 +216,22 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         print("Model leads to a contradictory query around " + query + " " + critical + " " + child)
                         raise AssertionError("Model leads to a contradictory query around " + query + " " + critical + " " + child)
                     queryVariables.add(child)
+                    # Backtrace and add all critical nodes to query.
+                    parent = [x for x in model.predecessors(child) if x[0] == "g"][0]
+                    while parent not in evidence:
+                        criticalRegion.add(parent)
+                        parent = [x for x in model.predecessors(parent) if x[0] == "g"][0]
 
                     # Fix other queries that point to absorbed query.
                     absorbedQueries.add(child)
                     for otherQuery in completeConjugateQueries.keys():
                         if otherQuery == query:
                             pass
-                        if child in completeConjugateQueries[otherQuery]["connectedDown"]:
-                            completeConjugateQueries[otherQuery]["connectedDown"].remove(child)
-                            completeConjugateQueries[otherQuery]["connectedDown"].add(query)
+                        if child in completeConjugateQueries[otherQuery]["connectedDown"].keys():
+                            if query not in completeConjugateQueries[otherQuery]["connectedDown"].keys():
+                                completeConjugateQueries[otherQuery]["connectedDown"][query] = list()
+                            completeConjugateQueries[otherQuery]["connectedDown"][query].extend(completeConjugateQueries[otherQuery]["connectedDown"][child])
+                            completeConjugateQueries[otherQuery]["connectedDown"].pop(child)
 
                     for grandChild in model.successors(child):
                         if grandChild[0] == "c":
@@ -319,7 +330,9 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                                         target = key
                                         break
                             if (target != query):
-                                connectedDownwardQueries.add(target)
+                                if target not in connectedDownwardQueries:
+                                    connectedDownwardQueries[target] = []
+                                connectedDownwardQueries[target].append(hidden)
                             else:
                                 # This is a self loop, but that's probably fine.
                                 # Previously threw an error, but this case *does* occur.
@@ -343,7 +356,9 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                                         target = key
                                         break
                             if (target != query):
-                                connectedDownwardQueries.add(target)
+                                if target not in connectedDownwardQueries:
+                                    connectedDownwardQueries[target] = []
+                                connectedDownwardQueries[target].append(hidden)
                             else:
                                 # This is a self loop, but that's probably fine.
                                 # Previously threw an error but this case *does* occur.
@@ -351,13 +366,18 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                                 pass
                             break
                     else:
-                        print("At " + hidden + " we have that " + grandChild + " should be in a critical region, but isn't.")
-                        raise AssertionError("At " + hidden + " we have that " + grandChild + " should be in a critical region, but isn't.")
+                        pass
+                        # This used to throw an error, but we now allow these undetermined nodes to exist.
+                        # It's pointing to something that doesn't have a knowable truth, so we just ignore it.
+                        #print("At " + hidden + " we have that " + grandChild + " should be in a critical region, but isn't.")
+                        #raise AssertionError("At " + hidden + " we have that " + grandChild + " should be in a critical region, but isn't.")
     
         completeConjugateQueries[query] = {"query":queryVariables, "critical":criticalRegion, "unknown":queryForcedUnknown, "colourEvidence":queryColourEvidence, "lineage":queryLineage, "hidden":queryHidden, "hardEvidence":queryHardEvidence, "incoming":queryIncomingMature, "connectedDown":connectedDownwardQueries, "downwardZero":queryDownwardGeneZero}
 
     for query in list(completeConjugateQueries.keys()):
         for key in completeConjugateQueries[query].keys():
+            if key == "connectedDown":
+                continue
             completeConjugateQueries[query][key] = list(completeConjugateQueries[query][key])
 
     #

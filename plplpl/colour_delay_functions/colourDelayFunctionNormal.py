@@ -74,5 +74,5 @@ class ColourDelayFunctionNormal(BaseDelayFunction):
         cdf_vals, min_val, max_val = calcCdfValues()
         edge_vals = calcColourWeights(cdf_vals)
         edge_vals[max_val] = 1.0
-        super().__init__("colourDelayFunctionNormal", 1, ["c"], {"maturation_min":min_val, "maturation_max":max_val}, min_val, max_val, edge_vals)
+        super().__init__("colourDelayFunctionNormal", 1, ["c"], {"colour_min":min_val, "colour_max":max_val}, min_val, max_val, edge_vals)
 

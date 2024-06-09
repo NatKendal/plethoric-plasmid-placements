@@ -172,8 +172,6 @@ def calculateNaiveProbabilities(modelFolder, dataFolder, modelName, modelExtensi
             if debug >= 2:
                 print("Working on node " + node)
 
-            if (node[0] == "g") and (node not in evidence):
-                raise AssertionError("Something got missed. " + node + " should be in a query but isn't.")
             doNode(node, naiveProbabilities)
 
     if save:

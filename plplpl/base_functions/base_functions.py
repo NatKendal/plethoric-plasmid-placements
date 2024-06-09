@@ -21,10 +21,14 @@ class BaseDelayFunction(object):
         self.upper = upper
         self.values = values.copy()
 
-    def checkConstants(self, model, forceExists=False):
+    def checkConstants(self, model, forceExists=False, debug=False):
         for key in self.constants.keys():
             if key in model.constants:
                 if self.constants[key] != model.constants[key]:
+                    if debug:
+                        print("Key:", key)
+                        print("Model:", model.constants[key])
+                        print("Function:", self.constants[key])
                     return False
             elif forceExists:
                 return False
@@ -62,13 +66,17 @@ class BaseConjugationFunction(object):
         self.parameters = parameters
         self.data = dict()
 
-    def checkConstants(self, model, forceExists=False):
+    def checkConstants(self, model, forceExists=False, debug=False):
         for key in self.constants.keys():
             if key in model.constants:
                 if self.constants[key] != model.constants[key]:
+                    if debug:
+                        print("Key:", key)
+                        print("Model:", model.constants[key])
+                        print("Function:", self.constants[key])
                     return False
-                elif forceExists:
-                    return False
+            elif forceExists:
+                return False
         return True
     
     def loadData(self, dataFolder, modelName, debug=0):
