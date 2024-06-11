@@ -7,7 +7,7 @@ from plplpl.conjugation_functions.boundingBoxes import calcBox, extendDonorEnds
 # for the edge cell1 --> cell2
 # input: endpoints of long axes as [[x1,y1],[x2,y2]], widths of short axes, epsilon to extend cell1 by
 # output: 0 if cells do not overlap; 1 if they do
-def checkContact(endpoints1, width1, endpoints2, width2, epsilon=0.3):
+def checkContact(endpoints1, width1, endpoints2, width2, epsilon=0.4):
 
     # cell 1 is acting like donor, so bound with hexagon
     # get the corners of the rectangular portion, then add the ends
@@ -21,7 +21,7 @@ def checkContact(endpoints1, width1, endpoints2, width2, epsilon=0.3):
     corners1.insert(4,ends[1])
 
     # cell 2 is acting like recipient, so bound with rectangle
-    corners2 = calcBox(endpoints2,width2)
+    corners2 = calcBox(endpoints2,width2,0)
     
     # make the shapely polygons for donor, recipient and check if they intersect
     p1 = sg.Polygon(corners1)

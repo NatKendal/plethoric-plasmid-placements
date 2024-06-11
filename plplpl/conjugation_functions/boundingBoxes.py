@@ -6,7 +6,7 @@ import numpy as np
 # optionally epsilon to extend the box by (defaults to zero)
 # output: list with four corners of a bounding box, ordered for shapely
 # (top left, bottom left, bottom right, top right)
-def calcBox(endpoints, width, epsilon=0):
+def calcBox(endpoints, width, epsilon):
 
     x1 = endpoints[0][0]
     y1 = endpoints[0][1]

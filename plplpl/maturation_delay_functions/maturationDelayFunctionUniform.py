@@ -1,4 +1,4 @@
-# specify the cdf, get the edge weights for colour
+# specify the cdf, get the edge weights for maturation
 
 import math
 import numpy as np
@@ -6,31 +6,27 @@ import pathlib
 
 from plplpl.base_functions import BaseDelayFunction
 
-# input: average and standard deviation in minutes, step length
-# output: dictionary of normal distribution values for all time steps in 3x standard deviation
-def calcCdfValues(avg=75, std=22.5, step_length = 5):
+# input: minimum and maximum of range in minutes, step length
+# output: dictionary of uniform distribution values for all time steps in the range 
+def calcCdfValues(min_val=30, max_val=60, step_length = 5):
 
     # convert minutes to steps
     # decrease min by one step so non-zero probability at the actual minimum
-    avg = math.floor(avg/step_length) 
-    std = math.ceil(std/step_length)
-
-    min_val = avg - 2 * std 
-    max_val = avg + 2 * std 
-
-    assert min_val > 0, "minimum light up time is less than 0"
+    # probability will be equal one at max
+    min_val = math.floor(min_val/step_length) - 1
+    max_val = math.ceil(max_val/step_length)
 
     cdf_vals = dict()
 
     for i in range(min_val, max_val+1):
 
-        cdf_vals[i] = 0.5 * (1 + math.erf( (i - avg) / (std * math.sqrt(2))))
+        cdf_vals[i] = (i - min_val) / (max_val - min_val)
 
     return cdf_vals, min_val, max_val
 
 # input: dictionary of cdf values
 # output: dictionary of edge weights
-def calcColourWeights(cdf_vals):
+def calcMaturationWeights(cdf_vals):
 
     # get minimum and maximum
     min_val = min(cdf_vals.keys())
@@ -50,7 +46,7 @@ def calcColourWeights(cdf_vals):
     return edge_vals
 
 # input: time between cells in minutes, dictionary of edge values, step length
-def getColourWeights(time, edge_vals, step_length = 5):
+def getMaturationWeights(time, edge_vals, step_length = 5):
 
     assert time % step_length == 0, "time between cells is not a multiple of time between images"
 
@@ -69,10 +65,9 @@ def getColourWeights(time, edge_vals, step_length = 5):
     else:
         return edge_vals[time]
 
-class ColourDelayFunctionNormal(BaseDelayFunction):
+class MaturationDelayFunctionUniform(BaseDelayFunction):
     def __init__(self):
         cdf_vals, min_val, max_val = calcCdfValues()
-        edge_vals = calcColourWeights(cdf_vals)
-        edge_vals[max_val] = 1.0
-        super().__init__("colourDelayFunctionNormal", 1, ["c"], {"colour_min":min_val, "colour_max":max_val}, min_val, max_val, edge_vals)
+        edge_vals = calcMaturationWeights(cdf_vals)
+        super().__init__("maturationDelayFunctionUniform", 1, ["c"], {"maturation_min":(min_val), "maturation_max":(max_val)}, min_val, max_val, edge_vals)
 
