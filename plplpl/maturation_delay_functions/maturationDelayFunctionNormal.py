@@ -8,17 +8,17 @@ from plplpl.base_functions import BaseDelayFunction
 
 # input: average and standard deviation in minutes, step length
 # output: dictionary of normal distribution values for all time steps in 3x standard deviation
-def calcCdfValues(avg=80, std=20, step_length = 5):
+def calcCdfValues(avg=60, std=15, step_length = 5):
 
     # convert minutes to steps
     # decrease min by one step so non-zero probability at the actual minimum
     avg = math.floor(avg/step_length) 
     std = math.ceil(std/step_length)
 
-    min_val = avg - 3 * std 
-    max_val = avg + 3 * std 
+    min_val = avg - 2 * std 
+    max_val = avg + 2 * std 
 
-    assert min_val > 0, "minimum maturation time is less than 0"
+    assert min_val > 0, "minimum colour delay time is less than 0"
 
     cdf_vals = dict()
 
