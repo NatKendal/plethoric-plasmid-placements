@@ -8,7 +8,7 @@ from plplpl.base_functions import BaseDelayFunction
 
 # input: average and standard deviation in minutes, step length
 # output: dictionary of normal distribution values for all time steps in 3x standard deviation
-def calcCdfValues(avg=75, std=22.5, step_length = 5):
+def calcCdfValues(avg=78, std=24, step_length = 5):
 
     # convert minutes to steps
     min_val = math.floor((avg - 2 * std)/step_length)
