@@ -11,12 +11,8 @@ from plplpl.base_functions import BaseDelayFunction
 def calcCdfValues(avg=75, std=22.5, step_length = 5):
 
     # convert minutes to steps
-    # decrease min by one step so non-zero probability at the actual minimum
-    avg = math.floor(avg/step_length) 
-    std = math.ceil(std/step_length)
-
-    min_val = avg - 2 * std 
-    max_val = avg + 2 * std 
+    min_val = math.floor((avg - 2 * std)/step_length)
+    max_val = math.ceil((avg + 3 * std)/step_length)
 
     assert min_val > 0, "minimum light up time is less than 0"
 
