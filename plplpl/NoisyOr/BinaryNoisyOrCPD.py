@@ -149,8 +149,9 @@ class BinaryNoisyOrCPD(TabularCPD):
     def get_self_values(self, **kwargs):
         if self.variable in kwargs:
             raise ValueError("Can't get probability of each assignment to " + str(self.variable) + " if it's assigned.")
-        kwargs[self.variable] = 0
-        zeroProb = self.get_value(**kwargs)
+        newKwargs = kwargs.copy()
+        newKwargs[self.variable] = 0
+        zeroProb = self.get_value(**newKwargs)
         return [[zeroProb], [1-zeroProb]]
 
     # Calculates get_value for all possible assignments to variables.
