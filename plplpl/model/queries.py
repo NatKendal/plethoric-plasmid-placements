@@ -86,6 +86,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
     #
 
     conjugationQueries = dict()
+    childQueries = dict()
     if debug >= 1:
         print("Finding conjugation queries.")
     if progressBar:
@@ -106,19 +107,64 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
 
         hiddenNodes = []
         parent = uid[node[1:]]
-        while (backwardLinks[parent] != -1) and ("g" + name[backwardLinks[parent]] not in evidence):
+        while (backwardLinks[parent] != -1) and ("g" + name[backwardLinks[parent]] not in evidence) and (len(forwardLinks[backwardLinks[parent]]) == 1):
             parent = backwardLinks[parent]
             hiddenNodes.append("g" + name[parent])
-        if (backwardLinks[parent] == -1):
-            if debug >= 2:
-                print("Skipping query since it leads to a dead end.")
+        if (backwardLinks[parent] == -1) and ("g" + name[parent] not in evidence):
+            # Shouldn't happen anymore
+            print("Skipping query since it leads to a dead end.")
             continue
-        if evidence["g" + name[backwardLinks[parent]]] == 1:
+        if ("g" + name[backwardLinks[parent]] in evidence) and (evidence["g" + name[backwardLinks[parent]]] == 1):
             print("Something went wrong when calculating query on " + node)
             raise ValueError("Model leads to a malformed query around " + node)
+        elif ("g" + name[backwardLinks[parent]] not in evidence) and (len(forwardLinks[backwardLinks[parent]]) > 1):
+            if "g" + name[backwardLinks[parent]] not in childQueries:
+                childQueries["g" + name[backwardLinks[parent]]] = set()
+            childQueries["g" + name[backwardLinks[parent]]].add(node)
         # node and hiddenNodes define a critical region for a query.
-        # conjugationQueries[queryNode] = [[critical region], [evidence nodes], [interfering queries]]
         conjugationQueries[node] = hiddenNodes
+
+    trueQueryCount = len(conjugationQueries)
+
+    iteration = 1
+    while True:
+        numChildQueries = len(childQueries)
+        if debug >= 1:
+            print("Finding intermediate conjugation queries. Iteration " + str(iteration))
+        if progressBar:
+            iterator = tqdm.tqdm(list(childQueries.keys()))
+        else:
+            iterator = list(childQueries.keys())
+        for node in iterator:
+            if node in conjugationQueries:
+                continue
+            hiddenNodes = []
+            parent = uid[node[1:]]
+            while (backwardLinks[parent] != -1) and ("g" + name[backwardLinks[parent]] not in evidence) and (len(forwardLinks[backwardLinks[parent]]) == 1):
+                parent = backwardLinks[parent]
+                hiddenNodes.append("g" + name[parent])
+            if (backwardLinks[parent] == -1) and ("g" + name[parent] not in evidence):
+                # This shouldn't happen anymore.
+                print("Skipping query since it leads to a dead end.")
+                for query in childQueries[node]:
+                    conjugationQueries.pop(query)
+                continue
+            if (backwardLinks[parent] == -1) and ("g" + name[parent] in evidence):
+                pass
+            elif (backwardLinks[parent] != -1) and ("g" + name[backwardLinks[parent]] in evidence) and (evidence["g" + name[backwardLinks[parent]]] == 1):
+                print("Something went wrong when calculating query on " + node)
+                raise ValueError("Model leads to a malformed query around " + node)
+            elif ("g" + name[backwardLinks[parent]] not in evidence) and (len(forwardLinks[backwardLinks[parent]]) > 1):
+                if "g" + name[backwardLinks[parent]] not in childQueries:
+                    childQueries["g" + name[backwardLinks[parent]]] = set()
+                childQueries["g" + name[backwardLinks[parent]]].add(node)
+            # node and hiddenNodes define a critical region for a query.
+            conjugationQueries[node] = hiddenNodes
+        if len(childQueries) == numChildQueries:
+            # no new queries, we can break
+            break
+        else:
+            iteration += 1
 
     if debug >= 1:
         print("Found " + str(len(conjugationQueries)) + " conjugation queries. Calculating full conjugation queries now.")
@@ -132,8 +178,8 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
     absorbedQueries = set()
     completeConjugateQueries = dict()
     for query in iterator:
-        if query in absorbedQueries:
-            continue
+        #if query in absorbedQueries:
+        #    continue
         if debug >= 2:
             print("Working on building query " + query)
         if progressBar:
@@ -161,6 +207,9 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
         # Gene nodes that have evidence = 0 but have a (potentially) active maturation node pointing into them.
         # These have CPD implicitly reformulated to be exclusively in terms of relevant nodes.
         queryDownwardGeneZero = set()
+        # Nodes that are query nodes for a parent query, treated as zero when calculating this query.
+        # Should be done automatically in evaluate? But saving here just in case.
+        queryZeroParent = set()
  
         # First: handle the main query node.
         for child in model.successors(query):
@@ -190,6 +239,8 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                 allEdges.add((parent, query))
                 queryIncomingMature.add(parent)
 
+        """
+        # Skip this step now that we include each line as its own query
         # Second: get all queries we will absorb.
         seen = set()
         queue = deque(conjugationQueries[query])
@@ -257,6 +308,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         else:
                             allEdges.add((predecessor, child))
                             queryIncomingMature.add(predecessor)
+        """
 
         # Third: we handle the complete critical region.
         queue = deque(criticalRegion)
@@ -268,7 +320,8 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                 if child[0] == "g":
                     continue
                 elif child[0] == "c":
-                    queryColourEvidence.add(child)
+                    if child not in queryForcedUnknown:
+                        queryColourEvidence.add(child)
                 elif child[0] == "m":
                     if child in evidence:
                         print("Model expected no evidence but found it at query " + query + " " + critical + " " + child)
@@ -284,6 +337,8 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                 elif parent[0] == "m":
                     allEdges.add((parent, critical))
                     queryIncomingMature.add(parent)
+                elif parent[0] == "g":
+                    queryZeroParent.add(parent)
                 else:
                     print("Shouldn't get here. Something went wrong when looking at " + query + " " + critical + " " + parent)
                     raise AssertionError("Shouldn't get here. Something went wrong when looking at " + query + " " + critical + " " + parent)
@@ -372,7 +427,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         #print("At " + hidden + " we have that " + grandChild + " should be in a critical region, but isn't.")
                         #raise AssertionError("At " + hidden + " we have that " + grandChild + " should be in a critical region, but isn't.")
     
-        completeConjugateQueries[query] = {"query":queryVariables, "critical":criticalRegion, "unknown":queryForcedUnknown, "colourEvidence":queryColourEvidence, "lineage":queryLineage, "hidden":queryHidden, "hardEvidence":queryHardEvidence, "incoming":queryIncomingMature, "connectedDown":connectedDownwardQueries, "downwardZero":queryDownwardGeneZero}
+        completeConjugateQueries[query] = {"query":queryVariables, "critical":criticalRegion, "unknown":queryForcedUnknown, "colourEvidence":queryColourEvidence, "lineage":queryLineage, "hidden":queryHidden, "hardEvidence":queryHardEvidence, "incoming":queryIncomingMature, "connectedDown":connectedDownwardQueries, "downwardZero":queryDownwardGeneZero, "parentQueries":set([q for q in childQueries if query in childQueries[q]]), "zeroParent":queryZeroParent}
 
     for query in list(completeConjugateQueries.keys()):
         for key in completeConjugateQueries[query].keys():

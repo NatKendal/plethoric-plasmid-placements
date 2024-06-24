@@ -1,3 +1,4 @@
+import collections
 import pickle
 
 from plplpl.NoisyOr import NoisyOrBayesianNetwork
@@ -87,17 +88,41 @@ def calculateNaiveProbabilities(modelFolder, dataFolder, modelName, modelExtensi
     # Subprocess for handling a specific query.
     def doQuery(query, destination):
         currentQueries.add(query)
+        if len(conQueries[query]["parentQueries"]) > 0:
+            for parent in conQueries[query]["parentQueries"]:
+                linkedQueries.add(query)
+            return
 
-        for node in sorted(conQueries[query]["query"] + conQueries[query]["critical"], key=lambda x: int(x.split("_")[1])):
+        nodes = []
+        networkedQueries = collections.deque()
+        networkedQueries.append(query)
+        allQueryNodes = []
+        while networkedQueries:
+            q = networkedQueries.popleft()
+            currentQueries.add(q)
+            for node in conQueries[q]["query"]:
+                nodes.append(node)
+            for node in conQueries[q]["critical"]:
+                nodes.append(node)
+            found = False
+            for otherQuery in conQueries.keys():
+                if q in conQueries[otherQuery]["parentQueries"]:
+                    networkedQueries.append(otherQuery)
+                    found = True
+            if found == False:
+                for node in conQueries[q]["query"]:
+                    allQueryNodes.append(q)
+
+        for node in sorted(nodes, key=lambda x: int(x.split("_")[1])):
             doNode(node, destination, force=True)
 
         # After we naively calculate, we normalize the query's naive probability to ensure that the end of the query is 1.
-        finalProbability = min([destination[x] for x in conQueries[query]["query"]])
+        finalProbability = min([destination[x] for x in allQueryNodes])
         # If the query is zero, then it can't have received the gene EXCEPT for from a linked query.
         # So we leave everything as zero for now and then recalculate later.
         if finalProbability == 0:
             return
-        for node in (conQueries[query]["query"] + conQueries[query]["critical"]):
+        for node in nodes:
             destination[node] = min(destination[node]/finalProbability, 1)
 
     # First: Go through the Conjugate Queries, calculating them naively and all their dependences.
@@ -128,7 +153,7 @@ def calculateNaiveProbabilities(modelFolder, dataFolder, modelName, modelExtensi
 
         # Calculate all the maturation node children from each linked query.
         for subQuery in currentQueries:
-            for node in (conQueries[query]["query"] + conQueries[query]["critical"]):
+            for node in (conQueries[subQuery]["query"] + conQueries[subQuery]["critical"]):
                 for child in model.successors(node):
                     if child[0] == "g":
                         continue
@@ -140,6 +165,7 @@ def calculateNaiveProbabilities(modelFolder, dataFolder, modelName, modelExtensi
         for subQuery in currentQueries:
             # Recalculate critical region.
             doQuery(query, workingNaiveProbabilities)
+        for subQuery in currentQueries:
             # Recalculate maturation node children.
             for node in (conQueries[query]["query"] + conQueries[query]["critical"]):
                 for child in model.successors(node):
