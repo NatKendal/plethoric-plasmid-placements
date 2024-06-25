@@ -65,10 +65,10 @@ def getColourWeights(time, edge_vals, step_length = 5):
     else:
         return edge_vals[time]
 
-class ColourDelayFunctionNormal(BaseDelayFunction):
+class ColourDelayFunctionNormalSkewed(BaseDelayFunction):
     def __init__(self):
         cdf_vals, min_val, max_val = calcCdfValues()
         edge_vals = calcColourWeights(cdf_vals)
         edge_vals[max_val] = 1.0
-        super().__init__("colourDelayFunctionNormal", 1, ["c"], {"colour_min":min_val, "colour_max":max_val}, min_val, max_val, edge_vals)
+        super().__init__("colourDelayFunctionNormalSkewed", 1, ["c"], {"colour_min":min_val, "colour_max":max_val}, min_val, max_val, edge_vals)
 
