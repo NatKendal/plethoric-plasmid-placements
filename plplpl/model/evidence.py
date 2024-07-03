@@ -1,3 +1,4 @@
+import collections
 import pickle
 
 from plplpl.NoisyOr import NoisyOrBayesianNetwork
@@ -163,12 +164,41 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
         # evidence[node] == 1
         for child in list(forwardLinks[uid[node[1:]]]):
             if "g" + name[child] in evidence:
+                # If you have the gene, but you have a child that doesn't:
                 if evidence["g"+name[child]] == 0:
+                    # Note that we found a contradiction.
                     count += 1
+                    # Begin snapping links.
+                    # First, treat this as new a starting point. (g, m, and c in evidence and set to zero.)
                     evidence["m"+name[child]] = 0
+                    evidence["c"+name[child]] = 0
+
+                    # Update forward and backward links to reflect the new change.
                     forwardLinks[uid[node[1:]]].remove(child)
                     backwardLinks[child] = -1
-                    
+
+                    # Determine the timepoint from which all previous links need to be deleted.
+                    disconnectTime = int(node.split("_")[1])
+
+                    # Update the gene nodes.
+                    queue = collections.deque()
+                    queue.append("g"+name[child])
+                    queue.append("m"+name[child])
+                    queue.append("c"+name[child])
+                    while queue:
+                        currentNode = queue.popleft()
+                        found = False
+                        for parent in list(model.predecessors(currentNode)):
+                            if int(node.split("_")[1]) <= disconnectTime:
+                                found = True
+                                model.remove_edge(parent, currentNode)
+                                model.get_cpds(node=currentNode).reduce([(parent, 0)], inplace=True)
+                        if found:
+                            for grandChild in list(model.successors(currentNode)):
+                                if grandChild[0] == currentNode[0]:
+                                    queue.append(grandChild)
+
+                    """
                     for parent in list(model.predecessors("g"+name[child])):
                         model.remove_edge(parent, "g"+name[child])
                     model.remove_cpds("g"+name[child])
@@ -183,6 +213,7 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                         model.remove_edge(parent, "m"+name[child])
                     model.remove_cpds("m"+name[child])
                     model.add_cpds(BinaryNoisyOrCPD("m"+name[child], 0))
+                    """
 
     if debug >= 1:
         print("Finished handling contradictions in model. Found " + str(count) + ". Adding in synchrony evidence.")

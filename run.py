@@ -25,14 +25,37 @@ from pathlib import Path
 import pickle
 import sys
 
+
+
 def experiment1():
-    metaFolder = "/Users/josephmeleshko/Home/GitHub/plethoric-plasmid-placements/Experiment1/"
-    functionFolder = "/Users/josephmeleshko/Home/GitHub/plethoric-plasmid-placements/functions"
-    inputFiles = ["/Users/josephmeleshko/Home/GitHub/plethoric-plasmid-placements/Experiment1/rawFiles/trap6.csv"]
-    transmissionFunctions = ["ContactWeightsBaseline", "ContactWeightsBoundary", "ContactWeightsArea"]
-    colourFunctions = [("ColourDelayFunctionNormal", 6, 30), ("ColourDelayFunctionNormalSkewed", 6, 30)]
-    maturationFunctions = [("MaturationDelayFunctionUniform", 6, 18), ("MaturationDelayFunctionNormal", 6, 18)]
-    multiRun(metaFolder, "/Users/josephmeleshko/Home/GitHub/plethoric-plasmid-placements/functions/", inputFiles, transmissionFunctions, colourFunctions, maturationFunctions, save=True, progressBar=True, debug=1, rebuildFunctions=True)
+    metaFolder = "Experiment1/"
+    functionFolder = "functions/"
+    inputFiles = ["Experiment1/rawFiles/trap6.csv"]
+    transmissionFunctions = ["contactWeightsBaseline", "contactWeightsBoundary", "contactWeightsArea"]
+    colourFunctions = [("colourDelayFunctionNormal", 6, 30), ("colourDelayFunctionNormalSkewed", 6, 30)]
+    maturationFunctions = [("maturationDelayFunctionUniform", 6, 18), ("maturationDelayFunctionNormal", 6, 18)]
+    multiCoreMultiRun(metaFolder, functionFolder, inputFiles, transmissionFunctions, colourFunctions, maturationFunctions, save=True, cores=6)
+    #multiRun(metaFolder, functionFolder, inputFiles, transmissionFunctions, colourFunctions, maturationFunctions, save=True, progressBar=True, debug=1)
+
+def experiment2():
+    metaFolder = "Experiment1/"
+    functionFolder = "functions/"
+    inputFiles = ["Experiment1/rawFiles/trap9.csv"]
+    transmissionFunctions = ["contactWeightsBaseline", "contactWeightsBoundary", "contactWeightsArea"]
+    colourFunctions = [("colourDelayFunctionNormal", 6, 30), ("colourDelayFunctionNormalSkewed", 6, 30)]
+    maturationFunctions = [("maturationDelayFunctionUniform", 6, 18), ("maturationDelayFunctionNormal", 6, 18)]
+    #multiCoreMultiRun(metaFolder, functionFolder, inputFiles, transmissionFunctions, colourFunctions, maturationFunctions, save=True, cores=6)
+    multiRun(metaFolder, functionFolder, inputFiles, transmissionFunctions, colourFunctions, maturationFunctions, save=True, progressBar=True, debug=1)
+
+def experiment3(trapFile):
+    metaFolder = "Experiment3/"
+    functionFolder = "functions/"
+    inputFiles = ["Experiment1/rawFiles/" + trapFile]
+    transmissionFunctions = ["contactWeightsBaseline", "contactWeightsBoundary", "contactWeightsArea"]
+    colourFunctions = [("colourDelayFunctionNormal", 6, 30), ("colourDelayFunctionNormalSkewed", 6, 30)]
+    maturationFunctions = [("maturationDelayFunctionNormal", 6, 18), ("maturationDelayFunctionNormalSkewed", 6, 18)]
+    multiRun(metaFolder, functionFolder, inputFiles, transmissionFunctions, colourFunctions, maturationFunctions, save=True, progressBar=True, debug=1)
+
 
 def multiCoreMultiRun(metaFolder, functionFolder, inputFiles, transmissionFunctions, colourFunctions, maturationFunctions, save=True, cores=1):
     metaFolder = metaFolder + "/"
@@ -43,10 +66,12 @@ def multiCoreMultiRun(metaFolder, functionFolder, inputFiles, transmissionFuncti
             for transmissionFunction in transmissionFunctions:
                 for colourFunction in colourFunctions:
                     for maturationFunction in maturationFunctions:
-                        name = inputFile.split(".")[0] + "_" + transmissionFunction + "_" + colourFunction[0] + "_" + maturationFunction[0] + "_runID" + str(run)
+                        name = inputFile.split("/")[-1].split(".")[0] + "_" + transmissionFunction + "_" + colourFunction[0] + "_" + maturationFunction[0] + "_runID" + str(run)
                         Path(metaFolder+name+"/").mkdir(parents=True, exist_ok=True)
                         Path(metaFolder+name+"/"+name+"_data/").mkdir(parents=True, exist_ok=True)
-                        pool.apply_async(fullRun, (inputFile, name, metaFolder+name+"/", metaFolder+name+"/"+name+"_data/", functionFolder, transmissionFunction, colourFunction[0], colourFunction[1], colourFunction[2], maturationFunction[0], maturationFunction[1], maturationFunction[2]))
+                        print("Setup - " + name)
+                        pool.apply_async(fullRun, args=(inputFile, name, metaFolder+name+"/", metaFolder+name+"/"+name+"_data/", functionFolder, transmissionFunction, colourFunction[0], colourFunction[1], colourFunction[2], maturationFunction[0], maturationFunction[1], maturationFunction[2]))
+                        run += 1
         pool.close()
         pool.join()
 
@@ -57,12 +82,12 @@ def multiRun(metaFolder, functionFolder, inputFiles, transmissionFunctions, colo
     metaFolder = metaFolder + "/"
     Path(metaFolder).mkdir(parents=True, exist_ok=True)
     run = 1
-    total = len(inputFiles) * len(transmissionFunction) * len(colourFunction) * len(maturationFunction)
+    total = len(inputFiles) * len(transmissionFunctions) * len(colourFunctions) * len(maturationFunctions)
     for inputFile in inputFiles:
         for transmissionFunction in transmissionFunctions:
             for colourFunction in colourFunctions:
                 for maturationFunction in maturationFunctions:
-                    name = inputFile.split(".")[0] + "_" + transmissionFunction + "_" + colourFunction[0] + "_" + maturationFunction[0] + "_runID" + str(run)
+                    name = inputFile.split("/")[-1].split(".")[0] + "_" + transmissionFunction + "_" + colourFunction[0] + "_" + maturationFunction[0] + "_runID" + str(run)
                     run += 1
                     Path(metaFolder+name+"/").mkdir(parents=True, exist_ok=True)
                     Path(metaFolder+name+"/"+name+"_data/").mkdir(parents=True, exist_ok=True)
@@ -72,16 +97,22 @@ def multiRun(metaFolder, functionFolder, inputFiles, transmissionFunctions, colo
                     print("Finished run " + str(run) + " of " + str(total))
                     rebuildFunctions = False
 
-def fullRun(rawInputFile, modelName, modelFolder, dataFolder, functionFolder, transmissionFunctionName, colourDelayFunctionName, colour_min, colour_max, maturationDelayFunctionName, maturation_min, maturation_max, save=True, progressBar=False, debug=0, rebuildFunctions=False):
+def fullRun(rawInputFile, modelName, modelFolder, dataFolder, functionFolder, transmissionFunctionName, colourDelayFunctionName, colour_min, colour_max, maturationDelayFunctionName, maturation_min, maturation_max, save=True, progressBar=False, debug=0, rebuildFunctions=False, statusUpdates=True):
 
     modelFolder = modelFolder + "/"
     dataFolder = dataFolder + "/"
     functionFolder = functionFolder + "/"
 
+    if statusUpdates:
+        print("Stage 0 - " + modelName + " - Initialized")
+
     if rebuildFunctions:
         buildFunctions(functionFolder, force=True)
     saveAll(rawInputFile, dataFolder, modelName)
     saveSynchronyCertainty(dataFolder, modelName)
+
+    if statusUpdates:
+        print("Stage 1 - " + modelName + " - Finished Calculating Data")
 
     gc.collect()
 
@@ -89,40 +120,69 @@ def fullRun(rawInputFile, modelName, modelFolder, dataFolder, functionFolder, tr
 
     gc.collect()
 
+    if statusUpdates:
+        print("Stage 2 - " + modelName + " - Finished Generating Directed Graph")
+
     model = addDelayFunctionToModel(modelFolder, dataFolder, modelName, "_None_None_None", functionFolder+colourDelayFunctionName+".pickle", save=save, debug=debug, progressBar=progressBar, safeMode=False, loadedModel=model)
 
     gc.collect()
 
-    model = addDelayFunctionToModel(modelFolder, dataFolder, modelName, "_None_"+colourDelayFunctionName+"_None", functionFolder+colourDelayFunctionName+".pickle", save=save, debug=debug, progressBar=progressBar, safeMode=False, loadedModel=model)
+    if statusUpdates:
+        print("Stage 3 - " + modelName + " - Finished Adding Colour Function")
+
+    model = addDelayFunctionToModel(modelFolder, dataFolder, modelName, "_None_"+colourDelayFunctionName+"_None", functionFolder+maturationDelayFunctionName+".pickle", save=save, debug=debug, progressBar=progressBar, safeMode=False, loadedModel=model)
 
     gc.collect()
+
+    if statusUpdates:
+        print("Stage 4 - " + modelName + " - Finished Adding Maturation Function")
 
     model = addConjugationFunctionToModel(modelFolder, dataFolder, modelName, "_None_"+colourDelayFunctionName+"_"+maturationDelayFunctionName, functionFolder+transmissionFunctionName+".pickle", save=save, debug=debug, progressBar=progressBar, safeMode=False, loadedModel=model, saveConjugationFunction=True)
 
     gc.collect()
 
+    if statusUpdates:
+        print("Stage 5 - " + modelName + " - Finished Adding Transmission Function")
+
     model, evidence, forwardLinks, backwardLinks = get_evidence(modelFolder, dataFolder, modelName, "_"+transmissionFunctionName+"_"+colourDelayFunctionName+"_"+maturationDelayFunctionName, save=save, debug=debug, progressBar=progressBar, loadedModel=model)
 
     gc.collect()
+
+    if statusUpdates:
+        print("Stage 6 - " + modelName + " - Finished Calculating Evidence")
 
     conQueries, nonConQueries, allEdges, fullQueries = build_queries(modelFolder, dataFolder, modelName, "_"+transmissionFunctionName+"_"+colourDelayFunctionName+"_"+maturationDelayFunctionName, save=save, debug=debug, progressBar=progressBar, loadedModel=model, loadedEvidence=evidence, loadedForwardLinks=forwardLinks, loadedBackwardLinks=backwardLinks)
 
     gc.collect()
 
+    if statusUpdates:
+        print("Stage 7 - " + modelName + " - Finished Calculating Queries")
+
     model = normalizeModel(modelFolder, dataFolder, modelName, "_"+transmissionFunctionName+"_"+colourDelayFunctionName+"_"+maturationDelayFunctionName, dataFolder+modelName+"_"+transmissionFunctionName+".pickle", normalizeTo=1.0, save=save, debug=debug, progressBar=progressBar, loadedModel=model, loadedEdgeList=allEdges, loadedBackwardLinks=backwardLinks)
 
     gc.collect()
+
+    if statusUpdates:
+        print("Stage 8 - " + modelName + " - Finished Normalizing Model")
 
     naiveProbabilities, incomingProbabilities = calculateNaiveProbabilities(modelFolder, dataFolder, modelName, "_"+transmissionFunctionName+"_"+colourDelayFunctionName+"_"+maturationDelayFunctionName, save=save, debug=debug, progressBar=progressBar, loadedModel=model, loadedEvidence=evidence, loadedConjugateQueries=conQueries, loadedFullQueries=fullQueries)
 
     gc.collect()
 
+    if statusUpdates:
+        print("Stage 9 - " + modelName + " - Finished Calculating Naive Probabilities")
+
     conQueryEvaluation, ncQueryEvaluation, preconditonConstants, fullQueryEvaluation = evaluateModel(modelFolder, dataFolder, modelName, "_"+transmissionFunctionName+"_"+colourDelayFunctionName+"_"+maturationDelayFunctionName, save=save, debug=debug, progressBar=progressBar, loadedModel=model, loadedEvidence=evidence, loadedConjugateQueries=conQueries, loadedNonConjugateQueries=nonConQueries, loadedNaiveProbabilities=naiveProbabilities, loadedIncomingProbabilities=incomingProbabilities)
+
+    print("Finished - " + modelName)
 
     return fullQueryEvaluation
 
+def reloadFunctions(functionFolder="functions/"):
+    buildFunctions(functionFolder, force=True)
 
-def strtobool (val):
+# Borrowed from stackoverflow/python before it was removed.
+def strtobool(val):
     """Convert a string representation of truth to true (1) or false (0).
     True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
     are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
@@ -137,5 +197,9 @@ def strtobool (val):
         raise ValueError("invalid truth value %r" % (val,))
 
 if __name__ == "__main__":
-    if len(sys.argv) == 17:
-        fullRun(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], int(sys.argv[8]), int(sys.argv[9]), sys.argv[10], int(sys.argv[11]), int(sys.argv[12]), save=bool(strtobool(sys.argv[13])), progressBar=bool(strtobool(sys.argv[14])), debug=int(sys.argv[15]), rebuildFunctions=bool(strtobool(sys.argv[16])))
+    if True:
+        if len(sys.argv) == 18:
+            fullRun(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], int(sys.argv[8]), int(sys.argv[9]), sys.argv[10], int(sys.argv[11]), int(sys.argv[12]), save=bool(strtobool(sys.argv[13])), progressBar=bool(strtobool(sys.argv[14])), debug=int(sys.argv[15]), rebuildFunctions=bool(strtobool(sys.argv[16])), statusUpdates=bool(strtobool(sys.argv[17])))
+        else:
+            print("Expected 17 arguments for:")
+            print("fullRun(rawInputFile, modelName, modelFolder, dataFolder, functionFolder, transmissionFunctionName, colourDelayFunctionName, colour_min, colour_max, maturationDelayFunctionName, maturation_min, maturation_max, save=True, progressBar=False, debug=0, rebuildFunctions=False, statusUpdates=True)")
