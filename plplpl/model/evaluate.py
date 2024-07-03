@@ -1,5 +1,6 @@
 import collections
 import itertools
+import math
 import pickle
 
 from pgmpy.factors import factor_product
@@ -20,7 +21,9 @@ loadedModel: if we should use a model already in memory instead of loading one.
 loadedEvidence: 
 loadedConjugateQueries:
 loadedNonConjugateQueries:
+loadedFullQueries:
 loadedNaiveProbabilities:
+loadedIncomingProbabilities:
 
 This function calculates two things:
     For each identified non-conjugate query node gC_T:
@@ -243,11 +246,29 @@ def blockBuilder(model, node, endpoints, source=None):
                 newBlocks, newParents = blockBuilder(model, child, endpoints)
                 blocks = blocks + newBlocks
                 parents = parents + newParents
-            return [block] + blocks, [None] + [(current if x == None else x) for x in parents]
+            if len(blocks) > 0:
+                return [block] + blocks, [None] + [(current if x == None else x) for x in parents]
+            else:
+                return [], []
         else:
             current = children[0]
 
-def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True, debug=0, progressBar=False, loadedModel=None, loadedEvidence=None, loadedConjugateQueries=None, loadedNonConjugateQueries=None, loadedNaiveProbabilities=None):
+# Helper function to merge queries together recursively.
+def queryMergeHelper(conQueries, evaluations, precons, query):
+    children = []
+    for child in conQueries[query]["childQueries"]:
+        children.append(queryMergeHelper(conQueries, evaluations, precons, child))
+    childChance = math.prod(children)
+    return (evaluations[query] + childChance - (evaluations[query] * childChance))
+
+def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True, debug=0, progressBar=False, loadedModel=None, loadedEvidence=None, loadedConjugateQueries=None, loadedNonConjugateQueries=None, loadedFullQueries=None, loadedNaiveProbabilities=None, loadedIncomingProbabilities=None):
+
+    manualDebug = None
+    # "g233_53"
+    # "g25717_166" snaps into 3!
+    # ["g233_53"]
+    #g116_17, g145_23, g144_32, g154_32, g866_44, g534_46, g233_53, g25717_166
+
     if progressBar:
         import tqdm
 
@@ -258,6 +279,14 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
     else:
         with open(modelFolder + modelName + "_model" + modelExtension + "_contradictionsPruned_normalized.pickle", "rb") as f:
             model = pickle.load(f)
+
+    previous = dict()
+    for node in model.nodes:
+        parent = None
+        for predecessor in model.predecessors(node):
+            if predecessor[0] == node[0]:
+                parent = predecessor
+        previous[node] = parent
 
     if debug >= 1:
         print("Loading cell names and unique ids.")
@@ -286,6 +315,11 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
     else:
         with open(modelFolder + modelName + "_modeldata" + modelExtension + "_nonConjugateQueries.pickle", "rb") as f:
             ncQueries = pickle.load(f)
+    if loadedFullQueries:
+        fullQueries = loadedFullQueries
+    else:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_fullQueries.pickle", "rb") as f:
+            fullQueries = pickle.load(f)
 
     if debug >= 1:
         print("Loading naive probabilities.")
@@ -295,41 +329,145 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
         with open(modelFolder + modelName + "_modeldata" + modelExtension + "_naiveProbabilities.pickle", "rb") as f:
             naiveProbabilities = pickle.load(f)
 
+    if debug >= 1:
+        print("Loading incoming probabilities.")
+    if loadedIncomingProbabilities:
+        incomingProbabilities = loadedIncomingProbabilities
+    else:
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_incomingProbabilities.pickle", "rb") as f:
+            incomingProbabilities = pickle.load(f)
+
     #
     # Conjugate Queries:
     # 
 
     conQueryEvaluation = dict()
+    conQueryPreconditionConstants = dict()
 
     if debug >= 1:
         print("Starting evaluation of conjugate queries.")
 
     if progressBar:
-        iterator = tqdm.tqdm(sorted(conQueries.keys(), key=lambda x: int(x.split("_")[1]), reverse=True))
-        #iterator = tqdm.tqdm(conQueries.keys())
+        #iterator = tqdm.tqdm(sorted(conQueries.keys(), key=lambda x: int(x.split("_")[1]), reverse=True))
+        #iterator = tqdm.tqdm(sorted(conQueries.keys(), key=lambda x: int(x.split("_")[1])))
+        iterator = tqdm.tqdm(conQueries.keys())
     else:
         iterator = conQueries.keys()
 
     for query in iterator:
+        if manualDebug:
+            if query != manualDebug:
+                continue
         #NoisyOrFactor._registry = dict()
         if debug >= 2:
             print(query + " - Initializing")
         if progressBar:
             iterator.set_description(desc=query + " - Initializing")
 
-        # Should only come up in a child query of something split earlier.
+        if debug >= 2:
+            print(query + " - calculating greater query and implications")
+        if progressBar:
+            iterator.set_description(query + " - calculating greater query and implications")
+
+        # Discern which full query we are a part of.
+        fullQuery = None
+        for q in fullQueries.keys():
+            if query in fullQueries[q]:
+                fullQuery = q
+
+        # Get other queries upward.
+        parentQueries = []
+        if len(conQueries[query]["parentQueries"]) > 0:
+            parent = conQueries[query]["parentQueries"][0]
+            parentQueries.append(parent)
+            while len(conQueries[parent]["parentQueries"]) > 0:
+                parent = conQueries[parent]["parentQueries"][0]
+                parentQueries.append(parent)
+
+        # Get other queries downward.
+        childQueries = []
+        if len(conQueries[query]["childQueries"]) > 0:
+            children = conQueries[query]["childQueries"]
+            while children:
+                newChildren = []
+                for child in children:
+                    childQueries.append(child)
+                    newChildren = newChildren + conQueries[child]["childQueries"]
+                children = newChildren
+
+        # The rest are siblings.
+        siblingQueries = []
+        for q in fullQueries[fullQuery]:
+            if (q == query) or (q in childQueries) or (q in parentQueries):
+                continue
+            siblingQueries.append(q)
+
+        # Get evidence implied by the current query calculation.
+        pseudoEvidence = dict()
+        # Parents are implicitly zero.
+        for parentQuery in parentQueries:
+            for node in (conQueries[parentQuery]["query"]+conQueries[parentQuery]["critical"]):
+                pseudoEvidence[node] = 0
+        # This is already accounted for later.
+        """
+        # Children are implicitly one.
+        for childQuery in childQueries:
+            for node in (conQueries[childQuery]["query"]+conQueries[childQuery]["critical"]):
+                pseudoEvidence[node] = 1
+        """
+        # Siblings are fixed, but have to be calculated.
+        siblingNodes = []
+        for siblingQuery in siblingQueries:
+            for node in (conQueries[siblingQuery]["query"]+conQueries[siblingQuery]["critical"]):
+                siblingNodes.append(node)
+        for node in sorted(siblingNodes, key=lambda x: int(x.split("_")[1])):
+            parent = previous[node] 
+            pseudoEvidence[node] = incomingProbabilities[node] + pseudoEvidence[parent] - (incomingProbabilities[node] * pseudoEvidence[parent])
+
+        # Clean up children coming off that die out.
+        queue = collections.deque()
+
+        for node in pseudoEvidence.keys():
+            if node[0] == "g":
+                queue.append(node)
+
+        while queue:
+            node = queue.popleft()
+            for child in model.successors(node):
+                if (child[0] == "g") and (child not in pseudoEvidence) and (child not in conQueries[query]["critical"]) and (child not in conQueries[query]["query"]) and (child not in evidence):
+                    pseudoEvidence[child] = incomingProbabilities[child] + pseudoEvidence[node] - (incomingProbabilities[child] * pseudoEvidence[node])
+                    queue.append(child)
+
+        # Calculate pseudoevidence for maturation nodes coming off of siblings etc.
+        for node in sorted(conQueries[fullQuery]["hidden"], key=lambda x: int(x.split("_")[1])):
+            if node in conQueries[query]["hidden"]:
+                continue
+            if (node in evidence) and (previous[node] not in fullQueries[fullQuery]):
+                continue
+            arguments = dict()
+            for parent in model.predecessors(node):
+                if parent in pseudoEvidence:
+                    arguments[parent] = pseudoEvidence[parent]
+                else:
+                    # There was an exception here when this was evidence[parent].
+                    # I think it's a dead end child acting weird, might be worth examining in the future..?
+                    arguments[parent] = naiveProbabilities[parent]
+            pseudoEvidence[node] = model.get_cpds(node).get_self_values_with_uncertain_evidence(**arguments)[1][0]
+
+        # Only using precondition constant in query merging later.
         preconditionConstant = 1.0
-        for node in conQueries[query]["zeroParent"]:
-            parent = node
-            while parent not in evidence:
-                cpd = model.get_cpds(parent)
-                for i in range(len(cpd.evidence)):
-                    if cpd.evidence[i][0] == "g":
-                        parent = cpd.evidence[i]
-                    elif cpd.evidence[i][0] == "m":
-                        preconditionConstant = preconditionConstant * (1 - (naiveProbabilities[cpd.evidence[i]] * cpd.evidence_noise[i]))
+        for node in (conQueries[query]["query"] + conQueries[query]["critical"]):
+            cpd = model.get_cpds(node)
+            for i in range(len(cpd.evidence)):
+                if cpd.evidence[i][0] == "g":
+                    continue
+                elif cpd.evidence[i][0] == "m":
+                    if cpd.evidence[i] in pseudoEvidence:
+                        preconditionConstant = preconditionConstant * (1 - (pseudoEvidence[cpd.evidence[i]] * cpd.evidence_noise[i]))
                     else:
-                        print("Something weird happened. Shouldn't get here.")
+                        preconditionConstant = preconditionConstant * (1 - (naiveProbabilities[cpd.evidence[i]] * cpd.evidence_noise[i]))
+                else:
+                    print("Something weird happened. Shouldn't get here.")
         
         # Find all the possible assignments to query and critical nodes.
         firstNode = sorted(conQueries[query]["query"] + conQueries[query]["critical"], key=lambda x: int(x.split("_")[1]))[0]
@@ -337,27 +475,76 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
 
         if progressBar:
             iterator.set_description(desc=query + " - Constructing simplified downward queries")
+
+        # Keep track of everything that is incoming to this query.
+        allIncoming = set(conQueries[query]["incoming"])
+        allIncomingQueries = set()
+        for incoming in allIncoming:
+            for q in fullQueries.keys():
+                if incoming in conQueries[q]["hidden"]:
+                    allIncomingQueries.add(q)
+
         # Build "connectedDown" query blocks.
+        # We only care about blocks where this query directly interacts with them.
         downwardQueryCPDs = list()
         downwardQueryEvidence = list()
         downwardQueryConstant = 1.0
-        for downwardQuery in conQueries[query]["connectedDown"].keys():
+        seenConnectedDown = set()
+        #seenIncomingQueries = set()
+        for downwardQuery in sorted(conQueries[query]["connectedDown"].keys(), key=lambda x: int(x.split("_")[1])):
+            if downwardQuery in seenConnectedDown:
+                continue
+            seenConnectedDown.add(downwardQuery)
+            if downwardQuery in fullQueries[fullQuery]:
+                continue # This is pointing downward into another arm of itself, we don't have to handle it here.
             fixed = True
             for hidden in conQueries[query]["connectedDown"][downwardQuery]:
-                # Check if this query block only uses fixed maturation nodes.
-                if fixed:
-                    for parent in model.predecessors(hidden):
-                        if parent[0] != "g":
-                            continue
-                        if parent not in conQueries[query]["lineage"]:
+                # Check if this downward query is not connected to us directly.
+                for parent in model.predecessors(hidden):
+                    if parent[0] != "g":
+                        continue
+                    if parent not in conQueries[query]["lineage"]:
+                        fixed = False
+                        break
+                    """
+                    for q in fullQueries[fullQuery]: # Catch if this downward query is pointed to in the full query, just not this particular one.
+                        if (parent in conQueries[q]["critical"]) or (parent in conQueries[q]["query"]):
                             fixed = False
                             break
-            # If so, it's not relevant to calculating the full query and we can skip. (It ends up trivial.)
-            # This is maybe unjustified? Worth a discussion. Easy to calculate.
+                    if fixed == False:
+                        break
+                    """
+                if fixed == False:
+                    break
+
+            # If so, it resolves to trivial.
+            # This is because we will divide by probability given the best assignment to this query, which is always true.
             if fixed:
                 continue
+
+            # Setup the block builder.
+            endpoints = []
+            """
+            parent = downwardQuery
+            while len(conQueries[parent]["parentQueries"]) > 0:
+                parent = conQueries[parent]["parentQueries"][0]
+            queue = collections.deque()
+            queue.append(parent)
+            firstBlockNode = sorted(conQueries[parent]["query"] + conQueries[parent]["critical"], key=lambda x: int(x.split("_")[1]))[0]
+            """
+            # Going backwards and starting at the parent is unnecessary, since if we do it by time, we catch this already.
+            queue.append(downwardQuery)
             firstBlockNode = sorted(conQueries[downwardQuery]["query"] + conQueries[downwardQuery]["critical"], key=lambda x: int(x.split("_")[1]))[0]
-            blocks, parents = blockBuilder(model, firstBlockNode, conQueries[downwardQuery]["query"])
+            while queue:
+                q = queue.popleft()
+                seenConnectedDown.add(q)
+                if len(conQueries[q]["childQueries"]) > 0:
+                    for child in conQueries[q]["childQueries"]:
+                        queue.append(child)
+                else:
+                    for end in conQueries[q]["query"]:
+                        endpoints.append(end)
+            blocks, parents = blockBuilder(model, firstBlockNode, endpoints)
             blockCPDs = []
             for i in range(len(blocks)):
                 # Build a new BinaryNoisyOrCPD of all possible causes of each block.
@@ -375,48 +562,138 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                             cpd_evidence.append(parent)
                             cpd_evidence_noise.append(cpd.evidence_noise[cpd.evidence.index(parent)])
                 blockCPD = BinaryNoisyOrCPD(variable, internalProbability, evidence=cpd_evidence, evidence_noise=cpd_evidence_noise)
-                # Reduce to only query variables.
                 values = dict()
                 for variable in blockCPD.evidence:
-                    if variable in conQueries[query]["hidden"]:
-                        continue
-                    if variable in conQueries[query]["incoming"]:
-                        continue
                     if variable[0] == "g":
                         continue
+                    # If it's part of a sibling, child, or parent query, we immediately add it to be reduced out.
+                    # This is so that we only consider the difference this query makes to the result.
+                    if variable in pseudoEvidence:
+                        values[variable] = pseudoEvidence[variable]
+                        continue
+                    # If it's relevant to us, continue, we'll marginalize it out later.
+                    if variable in conQueries[query]["hidden"]:
+                        continue
+                    if variable in allIncoming:
+                        continue
+                    skip = False
+                    # Don't add other queries if they aren't directly connected to the current ones.
+                    # It's significantly slower for a correlation occurring two queries away.
+                    # But also only include it if it isn't in *their* fixed lineage.
+                    if variable in evidence:
+                        values[variable] = evidence[variable]
+                        continue
+                    #for q in fullQueries:
+                    for q in allIncomingQueries:
+                        if variable in conQueries[q]["hidden"]:
+                            found = False
+                            for incoming in allIncoming:
+                                if incoming not in conQueries[q]["hidden"]:
+                                    continue
+                                predecessor = incoming
+                                while (previous[predecessor] not in conQueries[query]["incoming"]) and (previous[predecessor] not in evidence):
+                                    if previous[predecessor] == variable:
+                                        # We only care if it's upstream from a direct incoming node.
+                                        found = True
+                                        break
+                                    else:
+                                        predecessor = previous[predecessor]
+                                if found == True:
+                                    break
+                            if found:
+                                allIncoming.add(variable)
+                                #seenIncomingQueries.add(q)
+                                skip = True
+                                break
+                            else:
+                                # Otherwise, we can just use naive probabilities as an estimate and reduce it out.
+                                pass
+                            #allIncomingQueries.add(q)
+                            #seenIncomingQueries.add(q)
+                    if skip:
+                        continue
+                    
+                    # Otherwise, reduce it.
                     values[variable] = naiveProbabilities[variable]
+
                 blockCPD.reduce_with_uncertain_evidence([(key, value) for key, value in values.items()], inplace=True)
                 blockCPDs.append(blockCPD)
             downwardQueryCPDs.append(blockCPDs)
-            downwardQueryEvidence.append(conQueries[downwardQuery]["query"].copy())
+            downwardQueryEvidence.append(endpoints.copy())
 
-        """
-        downwardQueryFactors = []
-        for i in range(len(downwardQueryCPDs)):
-            toReduce = []
-            toMarginalize = []
-            for cpd in downwardQueryCPDs[i]:
-                if cpd.variable in downwardQueryEvidence[i]:
-                    toReduce.append((cpd.variable, 1))
-                else:
-                    toMarginalize.append(cpd.variable)
-            factor = NoisyOrFactor("product", downwardQueryCPDs[i])
-            downwardQueryFactors.append(NoisyOrFactor("marginalize", [NoisyOrFactor("reduce", [factor], toReduce)], argument=toMarginalize))
-        """
+        if progressBar:
+            iterator.set_description(desc=query + " - Computing downwardQueryConditionConstant")
+
+        downwardQueryConditionConstant = 1.0
+
         downwardQueryFactors = []
         downwardQueryToMarginalize = []
         for i in range(len(downwardQueryCPDs)):
+            # Figure out what the maximum value of these blocks are alongside the cleanup.
+            productFactorParts = []
+            toMarg = []
+            nextDownwardQueryFactors = []
+            nextDownwardQueryToMarginalize = []
             for cpd in downwardQueryCPDs[i]:
                 if cpd.variable in downwardQueryEvidence[i]:
-                    downwardQueryFactors.append(NoisyOrFactor("reduce", [cpd], argument=[(cpd.variable, 1)]))
+                    reducedFactor = NoisyOrFactor("reduce", [cpd], argument=[(cpd.variable, 1)])
+                    nextDownwardQueryFactors.append(reducedFactor)
+                    productFactorParts.append(reducedFactor)
                 else:
-                    downwardQueryToMarginalize.append(cpd.variable)
-                    downwardQueryFactors.append(cpd)
+                    nextDownwardQueryToMarginalize.append(cpd.variable)
+                    nextDownwardQueryFactors.append(cpd)
+                    toMarg.append(cpd.variable)
+                    productFactorParts.append(cpd)
+            productFactor = NoisyOrFactor("product", productFactorParts)
+            if len(toMarg) > 0:
+                # Future work: efficiently do this marginalization.
+                productFactor = NoisyOrFactor("marginalize", [productFactor], argument=toMarg)
+            lastAppearance = True
+            for variable in productFactor.variables:
+                for childQuery in childQueries:
+                    if variable in conQueries[childQuery]["hidden"]:
+                        lastAppearance = False
+                        break
+                if lastAppearance == False:
+                    break
+            toReduce = []
+            for v in productFactor.variables:
+                if v in conQueries[query]["hidden"]:
+                    continue
+                if v in evidence:
+                    toReduce.append((v, evidence[v]))
+                else:
+                    # This is an estimate, but it shouldn't make a significant difference as long as it's consistent.
+                    # It's just significantly faster.
+                    # Future work: find a refined estimate/quick calculation.
+                    toReduce.append((v, 1))
+            if len(toReduce) > 1:
+                productFactor = NoisyOrFactor("reduce", [productFactor], argument=toReduce)
+            """
+            if len([v for v in productFactor.variables if (v not in conQueries[query]["hidden"]) and (v in evidence)]) > 0:
+                productFactor = NoisyOrFactor("reduce", [productFactor], argument=[(v, evidence[v]) for v in productFactor.variables if (v not in conQueries[query]["hidden"]) and (v in evidence)])
+            if len([v for v in productFactor.variables if v not in conQueries[query]["hidden"]]) > 0:
+                productFactor = NoisyOrFactor("marginalizeGivenProbability", [productFactor], argument=[(v, naiveProbabilities[v]) for v in productFactor.variables if v not in conQueries[query]["hidden"]])
+            """
+            value = NoisyOrFactor("reduce", [productFactor], argument=[(v, 1) for v in productFactor.variables]).get_value()
+            if value == 0:
+                print("A downwardQuery " + " can't be satisfied, it's being skipped.")
+            else:
+                if lastAppearance:
+                    zeroValue = NoisyOrFactor("reduce", [productFactor], argument=[(v, 0) for v in productFactor.variables]).get_value()
+                    preconditionConstant = preconditionConstant * (zeroValue / value)
+
+                downwardQueryConditionConstant = downwardQueryConditionConstant * value
+                for factor in nextDownwardQueryFactors:
+                    downwardQueryFactors.append(factor)
+                for v in nextDownwardQueryToMarginalize:
+                    downwardQueryToMarginalize.append(v)
 
         if progressBar:
             iterator.set_description(desc=query + " - Computing shared downward zeroes")
 
         # Calculate the downwardZero values that are shared for all assignments.
+        # Since the downward zero stuff only matters for non-zero, we only have to consider this query and child queries.
         variableDownwardZero = set()
         for downwardZero in conQueries[query]["downwardZero"]:
             for parent in model.predecessors(downwardZero):
@@ -435,8 +712,6 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
             for parent in model.predecessors(downwardZero):
                 if parent in conQueries[query]["hidden"]:
                     fixedDownwardZeroMultiplier = fixedDownwardZeroMultiplier * (1.0 - cpd.evidence_noise[cpd.evidence.index(parent)])
-        if fixedDownwardZeroMultiplier == 0:
-            breakpoint()
 
         # Precompute all variable downward zero values to be used as needed later.
         variableDownwardZeroPrecomputed = dict()
@@ -448,11 +723,37 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                 if parent in conQueries[query]["hidden"]:
                     variableDownwardZeroPrecomputed[hidden] = variableDownwardZeroPrecomputed[hidden] * (1.0 - cpd.evidence_noise[cpd.evidence.index(parent)])
 
-        # Figure out which queries are incoming
-        incomingQueries = dict()
+        if progressBar:
+            iterator.set_description(desc=query + " - Examining incoming queries")
+
+        """
+        incomingQueries = dict() # Dictionary with a list of relevant variables, as opposed to set allIncomingQueries
         querylessIncoming = set()
-        for incoming in conQueries[query]["incoming"]:
-            for incomingQuery in conQueries.keys():
+        for incoming in sorted(allIncoming, key=lambda x: int(x.split("_")[1])):
+            for incomingQuery in fullQueries.keys():
+                if incoming in conQueries[incomingQuery]["hidden"]:
+                    current = incomingQuery
+                    while (current not in incomingQueries) and len(conQueries[current]["childQueries"]) > 0:
+                        found = False
+                        for childQuery in conQueries[current]["childQueries"]:
+                            if incoming in conQueries[childQuery]["hidden"]:
+                                found = True
+                                current = childQuery
+                        if found == False:
+                            break
+                    if incomingQuery not in incomingQueries:
+                        incomingQueries[incomingQuery] = set()
+                    incomingQueries[incomingQuery].add(incoming)
+                    break
+            else:
+                querylessIncoming.add(incoming)
+        """
+
+        # Figure out which queries are incoming
+        incomingQueries = dict() # Dictionary with a list of relevant variables, as opposed to set allIncomingQueries
+        querylessIncoming = set()
+        for incoming in allIncoming:
+            for incomingQuery in fullQueries.keys():
                 if incoming in conQueries[incomingQuery]["hidden"]:
                     if incomingQuery not in incomingQueries:
                         incomingQueries[incomingQuery] = set()
@@ -463,10 +764,8 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
         # Find the structure among each set of incoming queries.
         incomingParents = dict()
         incomingChildren = dict()
-        #for incomingQuery in incomingQueries.keys():
-        #    nodes = sorted(incomingQueries[incomingQuery], key=lambda x: int(x.split("_")[1]))
-        # Instead, do it for everything, then use this to build "queries" for the queryless incoming
-        for node in conQueries[query]["incoming"]:
+        # Get structure for everything, then use this to build "queries" for the queryless incoming nodes.
+        for node in allIncoming:
             incomingChildren[node] = set()
             children = collections.deque(model.successors(node))
             while children:
@@ -475,7 +774,7 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                     continue
                 if child in evidence:
                     continue
-                if child in conQueries[query]["incoming"]:
+                if child in allIncoming:
                     incomingParents[child] = node
                     incomingChildren[node].add(child)
                     continue
@@ -516,21 +815,78 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         queue.append(parent)
             incomingQueries[incoming] = pseudoquery
         # All incoming nodes should be in incomingQueries now.
+        
+        if progressBar:
+            iterator.set_description(desc=query + " - Building simplified CPDs for incoming nodes")
 
         # Build simplified CPDs for incoming hidden nodes.
         incomingCPDs = []
-        for incoming in conQueries[query]["incoming"]:
-            if incoming in incomingParents:
-                alpha = naiveProbabilities[incomingParents[incoming]]
-                beta = naiveProbabilities[incoming]
-                #gamma = (beta - alpha)/(1.0 - alpha) #Floating point issues
-                if (1.0 - alpha) <= 0.000000000001: # If 1-alpha is this close to zero, beta is almost 1 anyway.
-                    gamma = beta
+        if progressBar:
+            nestedIterator = tqdm.tqdm(sorted(allIncoming, key=lambda x: int(x.split("_")[1])), leave=False)
+        else:
+            nestedIterator = sorted(allIncoming, key=lambda x: int(x.split("_")[1]))
+        for incoming in nestedIterator:
+            if incoming in pseudoEvidence:
+                if progressBar:
+                    nestedIterator.set_description(desc="Working on " + incoming + " (pseudo)")
+                if incoming in incomingParents:
+                    arguments = dict()
+                    for predecessor in model.predecessors(incoming):
+                        if predecessor[0] == "m":
+                            arguments[predecessor] = 0
+                        elif predecessor in pseudoEvidence:
+                            arguments[predecessor] = pseudoEvidence[predecessor]
+                        else:
+                            arguments[predecessor] = evidence[predecessor]
+                    incomingProbability = model.get_cpds(incoming).get_self_values_with_uncertain_evidence(**arguments)[1][0]
+                    parent = previous[incoming]
+                    while (parent != incomingParents[incoming]):
+                        arguments = dict()
+                        for predecessor in model.predecessors(parent):
+                            if predecessor[0] == "m":
+                                arguments[predecessor] = 0
+                            elif predecessor in pseudoEvidence:
+                                arguments[predecessor] = pseudoEvidence[predecessor]
+                            else:
+                                arguments[predecessor] = evidence[predecessor]
+                        parentIncomingProbability = model.get_cpds(parent).get_self_values_with_uncertain_evidence(**arguments)[1][0]
+                        incomingProbability = incomingProbability + parentIncomingProbability - (incomingProbability * parentIncomingProbability)
+                        parent = previous[parent]
+                    incomingCPDs.append(BinaryNoisyOrCPD(incoming, incomingProbability, evidence=[incomingParents[incoming]], evidence_noise=[1.0]))
                 else:
-                    gamma = ((128 * beta) - (128 * alpha)) / (128 - (128 * alpha)) # Hopefully a scale up helps.
-                incomingCPDs.append(BinaryNoisyOrCPD(incoming, gamma, evidence=[incomingParents[incoming]], evidence_noise=[1]))
+                    incomingCPDs.append(BinaryNoisyOrCPD(incoming, pseudoEvidence[incoming]))
             else:
-                incomingCPDs.append(BinaryNoisyOrCPD(incoming, naiveProbabilities[incoming]))
+                if progressBar:
+                    nestedIterator.set_description(desc="Working on " + incoming)
+                if incoming in incomingParents:
+                    # This was janky and avoiding extra computation when we had less information precomputed.
+                    # We compute it now, so we can avoid this.
+                    """
+                    alpha = naiveProbabilities[incomingParents[incoming]]
+                    beta = naiveProbabilities[incoming]
+                    gamma = (beta - alpha)/(1.0 - alpha) #Floating point issues
+                    if (1.0 - alpha) <= 0.000000000001: # If 1-alpha is this close to zero, beta is almost 1 anyway.
+                        gamma = beta
+                    else:
+                        gamma = ((128 * beta) - (128 * alpha)) / (128 - (128 * alpha)) # Hopefully a scale up helps.
+                    incomingCPDs.append(BinaryNoisyOrCPD(incoming, gamma, evidence=[incomingParents[incoming]], evidence_noise=[1]))
+                    """
+                    incomingProbability = incomingProbabilities[incoming]
+                    parent = None
+                    for predecessor in model.predecessors(incoming):
+                        if predecessor[0] == "m":
+                            parent = predecessor
+                    while (parent != incomingParents[incoming]):
+                        incomingProbability = incomingProbability + incomingProbabilities[parent] - (incomingProbability * incomingProbabilities[parent])
+                        for predecessor in model.predecessors(parent):
+                            if predecessor[0] == "m":
+                                parent = predecessor
+                    incomingCPDs.append(BinaryNoisyOrCPD(incoming, incomingProbability, evidence=[incomingParents[incoming]], evidence_noise=[1.0]))
+                else:
+                    incomingCPDs.append(BinaryNoisyOrCPD(incoming, naiveProbabilities[incoming]))
+
+        if progressBar:
+            iterator.set_description(desc=query + " - Reducing out lineage nodes")
 
         # Calculate the parents of every hidden node.
         # Also decide which hidden nodes are always fixed due to only having parents in lineage.
@@ -569,6 +925,8 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
             nestedIterator = tqdm.tqdm([set(x) for x in QCzeroAssignments], leave=False)
         else:
             nestedIterator = [set(x) for x in QCzeroAssignments]
+
+        finishedFactors = []
 
         totalAssignmentProbability = 0.0
         for assignment in nestedIterator:
@@ -786,6 +1144,8 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         toReduce.append((variable, forcedHiddenNodes[variable]))
                     elif variable in evidence:
                         toReduce.append((variable, evidence[variable]))
+                    elif (variable[0] == "g") and (variable in pseudoEvidence): # Catch weirdness around links.
+                        toReduce.append((variable, pseudoEvidence[variable]))
                 if len(toReduce) > 0:
                     newFactors.append(NoisyOrFactor("reduce", [factor], argument=toReduce))
                 else:
@@ -799,39 +1159,52 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
             # New approach: do so by reducing to each assignment and summing together.
             done = set()
             for incomingQuery in incomingQueries.keys():
-                workingFactors = []
-                newFactors = []
-                for factor in fixedFactors:
-                    if len(set(incomingQueries[incomingQuery]) & set(factor.variables)) > 0:
-                        workingFactors.append(factor)
+                for root in [node for node in incomingQueries[incomingQuery] if node not in incomingParents]:
+                    workingFactors = []
+                    newFactors = []
+                    incomingTree = set()
+                    queue = collections.deque()
+                    queue.append(root)
+                    while queue:
+                        v = queue.popleft()
+                        incomingTree.add(v)
+                        if v in incomingChildren:
+                            for child in incomingChildren[v]:
+                                queue.append(child)
+
+                    for factor in fixedFactors:
+                        for v in factor.variables:
+                            if v in incomingTree:
+                                workingFactors.append(factor)
+                                break
+                        else:
+                            newFactors.append(factor)
+                    if len(workingFactors) == 0:
+                        continue
+                    elif len(workingFactors) == 1:
+                        productFactor = workingFactors[0]
                     else:
-                        newFactors.append(factor)
-                if len(workingFactors) == 0:
-                    continue
-                elif len(workingFactors) == 1:
-                    productFactor = workingFactors[0]
-                else:
-                    productFactor = NoisyOrFactor("product", workingFactors)
-                reducedFactors = []
-                #print(list(itertools.product(*[assignmentHelperFromDictionary(incomingChildren, node) for node in incomingQueries[incomingQuery] if node not in incomingParents])))
-                for m_assignment in itertools.product(*[assignmentHelperFromDictionary(incomingChildren, node) for node in incomingQueries[incomingQuery] if node not in incomingParents]):
-                    zeroVariables = set()
-                    for subAssignment in m_assignment:
-                        for variable in subAssignment:
-                            zeroVariables.add(variable)
-                    constant = 1.0
-                    # Add in constants from critical nodes set to zero, here.
-                    for critical in assignment:
-                        cpd = model.get_cpds(critical)
-                        for i in range(len(cpd.evidence)):
-                            if (cpd.evidence[i] in incomingQueries[incomingQuery]) and (cpd.evidence[i] not in zeroVariables):
-                                constant = constant * (1 - cpd.evidence_noise[i])
-                    if constant != 1:
-                        reducedFactors.append(NoisyOrFactor("reduce", [NoisyOrFactor("product", [NoisyOrFactor("constant", [], argument=[constant]), productFactor])], argument=[(var, (0 if var in zeroVariables else 1)) for var in incomingQueries[incomingQuery]]))
-                    else:
-                        reducedFactors.append(NoisyOrFactor("reduce", [productFactor], argument=[(var, (0 if var in zeroVariables else 1)) for var in incomingQueries[incomingQuery]]))
-                newFactors.append(NoisyOrFactor("sum", reducedFactors))
-                fixedFactors = newFactors
+                        productFactor = NoisyOrFactor("product", workingFactors)
+                    reducedFactors = []
+
+                    for m_assignment in [[x] for x in assignmentHelperFromDictionary(incomingChildren, root)]:
+                        zeroVariables = set()
+                        for subAssignment in m_assignment:
+                            for variable in subAssignment:
+                                zeroVariables.add(variable)
+                        constant = 1.0
+                        # Add in constants from critical nodes set to zero, here.
+                        for critical in assignment:
+                            cpd = model.get_cpds(critical)
+                            for i in range(len(cpd.evidence)):
+                                if (cpd.evidence[i] in incomingTree) and (cpd.evidence[i] not in zeroVariables):
+                                    constant = constant * (1 - cpd.evidence_noise[i])
+                        if constant != 1:
+                            reducedFactors.append(NoisyOrFactor("reduce", [NoisyOrFactor("product", [NoisyOrFactor("constant", [], argument=[constant]), productFactor])], argument=[(var, (0 if var in zeroVariables else 1)) for var in incomingTree]))
+                        else:
+                            reducedFactors.append(NoisyOrFactor("reduce", [productFactor], argument=[(var, (0 if var in zeroVariables else 1)) for var in incomingTree]))
+                    newFactors.append(NoisyOrFactor("sum", reducedFactors))
+                    fixedFactors = newFactors
  
             if progressBar:
                 nestedIterator.set_description(desc="Marginalizing out intermediate nodes          ")
@@ -845,7 +1218,8 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         workingFactors.append(factor)
                     else:
                         newFactors.append(factor)
-                newFactors.append((NoisyOrFactor("marginalize", [NoisyOrFactor("product", workingFactors)], argument=[toMarginalize])))
+                if len(workingFactors) > 0:
+                    newFactors.append((NoisyOrFactor("marginalize", [NoisyOrFactor("product", workingFactors)], argument=[toMarginalize])))
                 fixedFactors = newFactors
 
             if progressBar:
@@ -860,9 +1234,16 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
  
             finalFactor = completeAssignmentFactor
 
+            finishedFactors.append(finalFactor)
+
             if progressBar:
                 nestedIterator.set_description(desc="Doing final calculation                       ")
-            
+
+            if manualDebug:
+                if manualDebug == query:
+                    breakpoint()
+                    pass
+           
             finalFactorValue = finalFactor.get_value()
             """
             if finalFactorValue == 0:
@@ -878,9 +1259,10 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
             
             totalAssignmentProbability = totalAssignmentProbability + (colourEvidenceProbability * finalFactorValue)
         #print("Total", totalAssignmentProbability)
+        """
         if len(conQueries[query]["parentQueries"]) == 0:
             if totalAssignmentProbability == 0:
-                children = [x for x in conQueries.keys() if conQueries[x]["parentQueries"][0] == query]
+                children = [x for x in conQueries.keys() if (len(conQueries[x]["parentQueries"]) > 0) and (conQueries[x]["parentQueries"][0] == query)]
                 if (len(children) == 0) or (len([x for x in children if conQueryEvaluation[x] == 0]) > 0):
                     broken = False
                     for i in conQueries[query]["incoming"]:
@@ -902,9 +1284,41 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                                         broken = True
                         if broken:
                             print("Broken query!", query)
-        totalAssignmentProbability = preconditionConstant * fixedDownwardZeroMultiplier * totalAssignmentProbability
+        """
+        #totalAssignmentProbability = preconditionConstant * fixedDownwardZeroMultiplier * totalAssignmentProbability
+        totalAssignmentProbability = fixedDownwardZeroMultiplier * totalAssignmentProbability / downwardQueryConditionConstant
+
+        """
+        if totalAssignmentProbability == 0:
+            justified = True
+            for i in conQueries[query]["incoming"]:
+                if naiveProbabilities[i] > 0:
+                    justified = False
+                    #breakpoint()
+            for i in conQueries[query]["hardEvidence"]:
+                if i[0] == "m" and evidence[i] == 1:
+                    justified = False
+                    #breakpoint()
+
+
+
+            
+            if justified:
+                pass
+                #print("Justified zero query: " + query + " -> " + str(uid[query[1:]]))
+                #print("Parent queries: " + str(conQueries[query]["parentQueries"]))
+                #print("Child queries: " + str([q for q in conQueries.keys() if query in conQueries[q]["parentQueries"]]))
+            else:
+                pass
+                #print(query)
+                #breakpoint()
+                #print("Unjustified zero query: " + query + " -> " + str(uid[query[1:]]))
+                #print("Parent queries: " + str(conQueries[query]["parentQueries"]))
+                #print("Child queries: " + str([q for q in conQueries.keys() if query in conQueries[q]["parentQueries"]]))
         #print("Modified Total", totalAssignmentProbability)
+        """
         conQueryEvaluation[query] = totalAssignmentProbability
+        conQueryPreconditionConstants[query] = preconditionConstant
 
     #
     # Nonconjugate Queries:
@@ -928,6 +1342,22 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
 
         ncQueryEvaluation[query] = model.get_cpds(query).get_self_values_with_uncertain_evidence(**{parent:naiveProbabilities[parent] for parent in ncQueries[query]})[1][0]
 
+    #
+    # Full Queries
+    #
+
+    if debug >= 1:
+        print("Finished nonconjugate queries. Merging together full queries.")
+
+    if progressBar:
+        iterator = tqdm.tqdm(fullQueries.keys())
+    else:
+        iterator = fullQueries.keys()
+
+    fullQueryEvaluation = dict()
+    for query in iterator:
+        fullQueryEvaluation[query] = queryMergeHelper(conQueries, conQueryEvaluation, conQueryPreconditionConstants, query)
+
     if debug >= 1:
         print("All queries evaluated!")
 
@@ -938,8 +1368,12 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
             pickle.dump(conQueryEvaluation, f)
         with open(modelFolder + modelName + "_modelevaluation" + modelExtension + "_nonConjugateQueries.pickle", "wb") as f:
             pickle.dump(ncQueryEvaluation, f)
+        with open(modelFolder + modelName + "_modelevaluation" + modelExtension + "_conjugateQueryPreconditionConstants.pickle", "wb") as f:
+            pickle.dump(conQueryPreconditionConstants, f)
+        with open(modelFolder + modelName + "_modelevaluation" + modelExtension + "_fullQueries.pickle", "wb") as f:
+            pickle.dump(fullQueryEvaluation, f)
 
-    return conQueryEvaluation, ncQueryEvaluation
+    return conQueryEvaluation, ncQueryEvaluation, conQueryPreconditionConstants, fullQueryEvaluation
 
 
 

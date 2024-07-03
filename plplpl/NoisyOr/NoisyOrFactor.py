@@ -11,7 +11,7 @@ class NoisyOrFactor(object):
 
     Arguments:
     operation:
-        one of "product", "marginalize", "reduce", or "marginalizeGivenProbability"
+        one of "constant", "sum", "product", "marginalize", "reduce", or "marginalizeGivenProbability"
     references:
         if constant, then no references
         if product or sum, then at least one reference
@@ -28,7 +28,6 @@ class NoisyOrFactor(object):
     # Experimental pointer saving
     #_registry = WeakValueDictionary()
     _registry = dict()
-
     def __new__(cls, operation, references, argument=[]):
         factorID = (operation, tuple(sorted([id(ref) for ref in references])), tuple(sorted(argument)))
         if factorID in cls._registry:
@@ -72,6 +71,8 @@ class NoisyOrFactor(object):
         elif operation == "marginalize":
             if len(references) != 1:
                 raise ValueError("Can only marginalize one reference.")
+            if len(self.argument) == 0:
+                raise ValueError("Can't marginalize nothing.")
             self.variables = sorted(list(set(self.references[0].variables).difference(set(self.argument))))
         elif operation == "reduce":
             if len(references) != 1:
@@ -80,12 +81,27 @@ class NoisyOrFactor(object):
         elif operation == "marginalizeGivenProbability":
             if len(references) != 1:
                 raise ValueError("Can only marginalize* one reference.")
+            if len(self.argument) == 0:
+                raise ValueError("Can't marginalize nothing.")
             self.variables = sorted(list(set(self.references[0].variables).difference(set([x[0] for x in self.argument]))))
         else:
             raise ValueError("Expected operation from [constant, product, marginalize, reduce, marginalizeGivenProbability]")
 
     def __repr__(self):
-        return "NoisyOrFactor doing " + self.operation + " with references " + repr(self.references) + " and argument " + repr(argument)
+        return "<NoisyOrFactor " + str(id(self)) + " over (" + ", ".join(self.variables) + ") doing " + self.operation + " with argument " + repr(self.argument) + " on " + str(len(self.references)) + " reference factors>"
+
+    def marginalizeAll(self):
+        if len(self.variables) >= 1:
+            marginalizeAssignments = itertools.product([0,1], repeat=len(self.variables))
+            total = 0
+            v_assignment = {self.variables[i]:0 for i in range(len(self.variables))}
+            for marginalizeAssignment in marginalizeAssignments:
+                for i in range(len(self.variables)):
+                    v_assignment[self.variables[i]] = marginalizeAssignment[i]
+                    total = total + self.get_value(**v_assignment)
+            return total
+        else:
+            return self.get_value()
 
     def get_value(self, **kwargs):
         if self.operation == "constant":
@@ -115,32 +131,42 @@ class NoisyOrFactor(object):
             self.savedValues[assignment] = result
             return result
         elif self.operation == "marginalize":
-            marginalizeAssignments = itertools.product([0,1], repeat=len(self.argument))
-            total = 0
-            v_assignment = {self.argument[i]:0 for i in range(len(self.argument))}
-            for marginalizeAssignment in marginalizeAssignments:
-                for i in range(len(self.argument)):
-                    v_assignment[self.argument[i]] = marginalizeAssignment[i]
-                #total = total + self.references[0].get_value(**ChainMap(v_assignment, kwargs))
-                total = total + self.references[0].get_value(**v_assignment, **kwargs)
-            self.savedValues[assignment] = total
-            return total
+            if len(self.argument) > 0:
+                #if len(self.argument) > 6:
+                #    print("About to marginalize " + str(len(self.argument)))
+                marginalizeAssignments = itertools.product([0,1], repeat=len(self.argument))
+                total = 0
+                v_assignment = {self.argument[i]:0 for i in range(len(self.argument))}
+                for marginalizeAssignment in marginalizeAssignments:
+                    for i in range(len(self.argument)):
+                        v_assignment[self.argument[i]] = marginalizeAssignment[i]
+                    total = total + self.references[0].get_value(**ChainMap(v_assignment, kwargs))
+                    #total = total + self.references[0].get_value(**v_assignment, **kwargs)
+                self.savedValues[assignment] = total
+                #if len(self.argument) > 6:
+                #    print("Finished marginalizing " + str(len(self.argument)))
+                return total
+            else:
+                return self.get_value(**kwargs)
         elif self.operation == "reduce":
             v_assignment = {x[0]:x[1] for x in self.argument}
-            #result = self.references[0].get_value(**ChainMap(v_assignment, kwargs))
-            result = self.references[0].get_value(**v_assignment, **kwargs)
+            result = self.references[0].get_value(**ChainMap(v_assignment, kwargs))
+            #result = self.references[0].get_value(**v_assignment, **kwargs)
             self.savedValues[assignment] = result
             return result
         elif self.operation == "marginalizeGivenProbability":
-            marginalizeAssignments = itertools.product([0,1], repeat=len(self.argument))
-            total = 0
-            v_assignment = {self.argument[i]:0 for i in range(len(self.argument))}
-            for marginalizeAssignment in marginalizeAssignments:
-                assignmentProb = 1.0
-                for i in range(len(marginalizeAssignment)):
-                    v_assignment[self.argument[i][0]] = marginalizeAssignment[i]
-                    assignmentProb = assignmentProb * (self.argument[i][1] if (marginalizeAssignment[i] == 1) else (1-self.argument[i][1]))
-                #total = total + (assignmentProb * self.references[0].get_value(**ChainMap(v_assignment, kwargs)))
-                total = total + (assignmentProb * self.references[0].get_value(**v_assignment, **kwargs))
-            self.savedValues[assignment] = total
-            return total
+            if len(self.argument) > 0:
+                marginalizeAssignments = itertools.product([0,1], repeat=len(self.argument))
+                total = 0
+                v_assignment = {self.argument[i][0]:0 for i in range(len(self.argument))}
+                for marginalizeAssignment in marginalizeAssignments:
+                    assignmentProb = 1.0
+                    for i in range(len(marginalizeAssignment)):
+                        v_assignment[self.argument[i][0]] = marginalizeAssignment[i]
+                        assignmentProb = assignmentProb * (self.argument[i][1] if (marginalizeAssignment[i] == 1) else (1-self.argument[i][1]))
+                    total = total + (assignmentProb * self.references[0].get_value(**ChainMap(v_assignment, kwargs)))
+                    #total = total + (assignmentProb * self.references[0].get_value(**v_assignment, **kwargs))
+                self.savedValues[assignment] = total
+                return total
+            else:
+                return self.get_value(**kwargs)
