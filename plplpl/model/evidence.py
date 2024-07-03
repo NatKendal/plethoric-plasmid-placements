@@ -189,7 +189,7 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                         currentNode = queue.popleft()
                         found = False
                         for parent in list(model.predecessors(currentNode)):
-                            if int(node.split("_")[1]) <= disconnectTime:
+                            if int(parent.split("_")[1]) <= disconnectTime:
                                 found = True
                                 model.remove_edge(parent, currentNode)
                                 model.get_cpds(node=currentNode).reduce([(parent, 0)], inplace=True)
