@@ -31,7 +31,7 @@ def getContactBoundary(endpoints1, width1, endpoints2, width2, epsilon=0.4,tol=1
 
     result = p1.intersection(boundary).length
     
-    if result < 1e-3:
+    if result < tol:
         return 0
     else:
         return result
