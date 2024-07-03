@@ -18,36 +18,14 @@ save: if we should save the model to a file (pickle)
 debug: 0 = nothing, 1 = status, 2 = verbose
 progressBar: if we should show a progress bar on long for loops
 loadedModel: if we should use a model already in memory instead of loading one.
-loadedEvidence: 
-loadedConjugateQueries:
-loadedNonConjugateQueries:
-loadedFullQueries:
-loadedNaiveProbabilities:
-loadedIncomingProbabilities:
+loadedEvidence: if we should use evidence already in memory instead of loading it.
+loadedConjugateQueries: if we should use conjugate queries already in memory instead of loading them.
+loadedNonConjugateQueries: if we should use nonconjugate queries already in memory instead of loading them.
+loadedFullQueries: if we should use full queries already in memory instead of loading them.
+loadedNaiveProbabilities: if we should use naive probabilities already in memory instead of loading them.
+loadedIncomingProbabilities: if we should use incoming probabilities already in memory instead of loading them.
 
-This function calculates two things:
-    For each identified non-conjugate query node gC_T:
-        P(gC_T = 1 | naiveCalculation for all nodes of timestep < T), lower is better.
-
-    For each identified conjugate query given as
-        - "query": Query point gene nodes
-        - "critical": Critical gene nodes
-        - "unknown": Forced unknown nodes
-        - "colourEvidence": Evidence colour nodes
-        - "lineage": Fixed downstream consequence gene nodes
-        - "hidden": Downstream maturation nodes to eliminate
-        - "hardEvidence": Upstream nodes given as evidence that are assumed with probability 1
-        - "incoming": Upstream maturation nodes given as naive probability that are assumed with probability 1
-        - "connectedDown": Downstream consequence queries that are used to calculate likelihood of assignment
-        - "downwardZero": Downstream nodes that evidence gives as zero, to contribute to likelihood of assignment to query
-    We compute, given evidence E, for each valid assignment Q to query nodes and C to critical nodes:
-        P("query" = Q, "critical" = C, "colourEvidence" = E, "lineage" = E, "downardZero" = E, collapsed("connectedDown") = E | "hardEvidence" = E), higher is better.
-    "hidden" nodes are eliminated.
-    "unknown" nodes are trivially eliminated (ignored).
-    "incoming" nodes are eliminated.
-    "downwardZero" evidence is preconditioned on the fact that it didn't get the plasmid from anywhere else.
-    "connectedDown" evidence is rescaled so that if all incoming maturation nodes are 1, then it has maximum probability.
-        - This is analogous to having this evidence as conditioning and then normalizing it out later, not quite the same, but much faster.
+TODO: Detailed description of the evaluation calculated.
 """
 
 # Helper function for recursively calculating assignments.
@@ -263,11 +241,8 @@ def queryMergeHelper(conQueries, evaluations, precons, query):
 
 def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True, debug=0, progressBar=False, loadedModel=None, loadedEvidence=None, loadedConjugateQueries=None, loadedNonConjugateQueries=None, loadedFullQueries=None, loadedNaiveProbabilities=None, loadedIncomingProbabilities=None):
 
+    # Set this to a specific query to skip directly to it and then enter debugger just before calculating it.
     manualDebug = None
-    # "g233_53"
-    # "g25717_166" snaps into 3!
-    # ["g233_53"]
-    #g116_17, g145_23, g144_32, g154_32, g866_44, g534_46, g233_53, g25717_166
 
     if progressBar:
         import tqdm
@@ -408,13 +383,7 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
         for parentQuery in parentQueries:
             for node in (conQueries[parentQuery]["query"]+conQueries[parentQuery]["critical"]):
                 pseudoEvidence[node] = 0
-        # This is already accounted for later.
-        """
-        # Children are implicitly one.
-        for childQuery in childQueries:
-            for node in (conQueries[childQuery]["query"]+conQueries[childQuery]["critical"]):
-                pseudoEvidence[node] = 1
-        """
+
         # Siblings are fixed, but have to be calculated.
         siblingNodes = []
         for siblingQuery in siblingQueries:
@@ -506,14 +475,6 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                     if parent not in conQueries[query]["lineage"]:
                         fixed = False
                         break
-                    """
-                    for q in fullQueries[fullQuery]: # Catch if this downward query is pointed to in the full query, just not this particular one.
-                        if (parent in conQueries[q]["critical"]) or (parent in conQueries[q]["query"]):
-                            fixed = False
-                            break
-                    if fixed == False:
-                        break
-                    """
                 if fixed == False:
                     break
 
@@ -524,6 +485,7 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
 
             # Setup the block builder.
             endpoints = []
+            # Going backwards and starting at the parent is unnecessary, since we include those in the precondition or already see them.
             """
             parent = downwardQuery
             while len(conQueries[parent]["parentQueries"]) > 0:
@@ -532,7 +494,6 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
             queue.append(parent)
             firstBlockNode = sorted(conQueries[parent]["query"] + conQueries[parent]["critical"], key=lambda x: int(x.split("_")[1]))[0]
             """
-            # Going backwards and starting at the parent is unnecessary, since if we do it by time, we catch this already.
             queue.append(downwardQuery)
             firstBlockNode = sorted(conQueries[downwardQuery]["query"] + conQueries[downwardQuery]["critical"], key=lambda x: int(x.split("_")[1]))[0]
             while queue:
@@ -724,30 +685,7 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                     variableDownwardZeroPrecomputed[hidden] = variableDownwardZeroPrecomputed[hidden] * (1.0 - cpd.evidence_noise[cpd.evidence.index(parent)])
 
         if progressBar:
-            iterator.set_description(desc=query + " - Examining incoming queries")
-
-        """
-        incomingQueries = dict() # Dictionary with a list of relevant variables, as opposed to set allIncomingQueries
-        querylessIncoming = set()
-        for incoming in sorted(allIncoming, key=lambda x: int(x.split("_")[1])):
-            for incomingQuery in fullQueries.keys():
-                if incoming in conQueries[incomingQuery]["hidden"]:
-                    current = incomingQuery
-                    while (current not in incomingQueries) and len(conQueries[current]["childQueries"]) > 0:
-                        found = False
-                        for childQuery in conQueries[current]["childQueries"]:
-                            if incoming in conQueries[childQuery]["hidden"]:
-                                found = True
-                                current = childQuery
-                        if found == False:
-                            break
-                    if incomingQuery not in incomingQueries:
-                        incomingQueries[incomingQuery] = set()
-                    incomingQueries[incomingQuery].add(incoming)
-                    break
-            else:
-                querylessIncoming.add(incoming)
-        """
+            iterator.set_description(desc=query + " - Examining incoming queries") 
 
         # Figure out which queries are incoming
         incomingQueries = dict() # Dictionary with a list of relevant variables, as opposed to set allIncomingQueries
@@ -788,7 +726,10 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
         # Add a pseudoquery for all the hidden nodes connected to each other but aren't in a query.
         # Just so they are appropriately computed together.
         done = set()
+        trivialIncomingMaturation = set()
         for incoming in querylessIncoming:
+            if incoming in done:
+                continue
             done.add(incoming)
             pseudoquery = set()
             pseudoquery.add(incoming)
@@ -813,9 +754,25 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                     parent = incomingParents[node]
                     if parent not in done:
                         queue.append(parent)
-            incomingQueries[incoming] = pseudoquery
+            # If this is a standalone node, check if it appears in any incoming query.
+            # Otherwise, we can reduce by it in the critical and switchpoint cpds.
+            if len(pseudoquery) == 1:
+                for factor in downwardQueryFactors:
+                    if incoming in factor.variables:
+                        incomingQueries[incoming] = pseudoquery
+                        break
+                else:
+                    # It can be reduced into the critical/query cpds.
+                    trivialIncomingMaturation.add(incoming)
+                    allIncoming.remove(incoming)
+                    if incoming in incomingParents:
+                        incomingParents.pop(incoming)
+                    if incoming in incomingChildren:
+                        incomingChildren.pop(incoming)
+            else:
+                incomingQueries[incoming] = pseudoquery
         # All incoming nodes should be in incomingQueries now.
-        
+
         if progressBar:
             iterator.set_description(desc=query + " - Building simplified CPDs for incoming nodes")
 
@@ -859,18 +816,6 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                 if progressBar:
                     nestedIterator.set_description(desc="Working on " + incoming)
                 if incoming in incomingParents:
-                    # This was janky and avoiding extra computation when we had less information precomputed.
-                    # We compute it now, so we can avoid this.
-                    """
-                    alpha = naiveProbabilities[incomingParents[incoming]]
-                    beta = naiveProbabilities[incoming]
-                    gamma = (beta - alpha)/(1.0 - alpha) #Floating point issues
-                    if (1.0 - alpha) <= 0.000000000001: # If 1-alpha is this close to zero, beta is almost 1 anyway.
-                        gamma = beta
-                    else:
-                        gamma = ((128 * beta) - (128 * alpha)) / (128 - (128 * alpha)) # Hopefully a scale up helps.
-                    incomingCPDs.append(BinaryNoisyOrCPD(incoming, gamma, evidence=[incomingParents[incoming]], evidence_noise=[1]))
-                    """
                     incomingProbability = incomingProbabilities[incoming]
                     parent = None
                     for predecessor in model.predecessors(incoming):
@@ -967,7 +912,9 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         hardEvidence[parent] = 0
                     elif parent in conQueries[query]["hardEvidence"]:
                         hardEvidence[parent] = evidence[parent]
-                criticalNodeReducedCPDs.append(model.get_cpds(node).reduce([(key, value) for key, value in hardEvidence.items()], inplace=False))
+                    elif parent in trivialIncomingMaturation:
+                        hardEvidence[parent] = naiveProbabilities[parent]
+                criticalNodeReducedCPDs.append(model.get_cpds(node).reduce_with_uncertain_evidence([(key, value) for key, value in hardEvidence.items()], inplace=False))
                 # Check if this is the last in the assignment, if so, also do the next node.
                 # This is the point where it's one.
                 for child in model.successors(node):
@@ -978,7 +925,9 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                                 hardEvidence[parent] = 0
                             elif parent in conQueries[query]["hardEvidence"]:
                                 hardEvidence[parent] = evidence[parent]
-                        switchPointCPDs.append(model.get_cpds(child).reduce([(key, value) for key, value in hardEvidence.items()], inplace=False))
+                            elif parent in trivialIncomingMaturation:
+                                hardEvidence[parent] = naiveProbabilities[parent]
+                        switchPointCPDs.append(model.get_cpds(child).reduce_with_uncertain_evidence([(key, value) for key, value in hardEvidence.items()], inplace=False))
                         # Also locate maturation assignments from here.
                         for grandChild in model.successors(child):
                             if grandChild[0] != "m":
@@ -1003,7 +952,9 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                                 hardEvidence[parent] = 0
                             elif parent in conQueries[query]["hardEvidence"]:
                                 hardEvidence[parent] = evidence[parent]
-                        switchPointCPDs.append(model.get_cpds(node).reduce([(key, value) for key, value in hardEvidence.items()], inplace=False))
+                            elif parent in trivialIncomingMaturation:
+                                hardEvidence[parent] = naiveProbabilities[parent]
+                        switchPointCPDs.append(model.get_cpds(node).reduce_with_uncertain_evidence([(key, value) for key, value in hardEvidence.items()], inplace=False))
                         for grandChild in model.successors(node):
                             if grandChild[0] != "m":
                                 continue
@@ -1029,17 +980,6 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                 nestedIterator.set_description(desc="Calculating gene node factors                 ")
             # Setup the factors dependent on the assignment to gene nodes.
             fixedFactors = list()
-            #fixedToMarginalize = set()
-            """
-            for cpd in criticalNodeReducedCPDs:
-                #for parent in cpd.evidence:
-                #    fixedToMarginalize.add(parent)
-                #factor = cpd.to_factor()
-                #factor.reduce([(cpd.variable, (0 if cpd.variable in assignment else 1))], inplace=True)
-                factor = NoisyOrFactor("reduce", [cpd], argument=[(cpd.variable, (0 if cpd.variable in assignment else 1))])
-                fixedFactors.append(factor)
-            """
-
             for cpd in switchPointCPDs:
                 #for parent in cpd.evidence:
                 #    fixedToMarginalize.add(parent)
@@ -1245,78 +1185,11 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
                     pass
            
             finalFactorValue = finalFactor.get_value()
-            """
-            if finalFactorValue == 0:
-                for factor in fixedFactors:
-                    if len(factor.variables) == 0:
-                         if factor.get_value() == 0:
-                             break
-                else:
-                    breakpoint()
-            """
-            #print("Factor Value", finalFactorValue)
-            #print("Colour Modifier", colourEvidenceProbability)
             
             totalAssignmentProbability = totalAssignmentProbability + (colourEvidenceProbability * finalFactorValue)
-        #print("Total", totalAssignmentProbability)
-        """
-        if len(conQueries[query]["parentQueries"]) == 0:
-            if totalAssignmentProbability == 0:
-                children = [x for x in conQueries.keys() if (len(conQueries[x]["parentQueries"]) > 0) and (conQueries[x]["parentQueries"][0] == query)]
-                if (len(children) == 0) or (len([x for x in children if conQueryEvaluation[x] == 0]) > 0):
-                    broken = False
-                    for i in conQueries[query]["incoming"]:
-                        if naiveProbabilities[i] > 0:
-                            broken = True
-                    for i in conQueries[query]["hardEvidence"]:
-                        if i[0] == "m":
-                            if evidence[i] == 1:
-                                broken = True
-                    if broken:
-                        broken = False
-                        for child in [x for x in children if conQueryEvaluation[x] == 0]:
-                            for i in conQueries[query]["incoming"]:
-                                if naiveProbabilities[i] > 0:
-                                    broken = True
-                            for i in conQueries[query]["hardEvidence"]:
-                                if i[0] == "m":
-                                    if evidence[i] == 1:
-                                        broken = True
-                        if broken:
-                            print("Broken query!", query)
-        """
-        #totalAssignmentProbability = preconditionConstant * fixedDownwardZeroMultiplier * totalAssignmentProbability
+        
         totalAssignmentProbability = fixedDownwardZeroMultiplier * totalAssignmentProbability / downwardQueryConditionConstant
-
-        """
-        if totalAssignmentProbability == 0:
-            justified = True
-            for i in conQueries[query]["incoming"]:
-                if naiveProbabilities[i] > 0:
-                    justified = False
-                    #breakpoint()
-            for i in conQueries[query]["hardEvidence"]:
-                if i[0] == "m" and evidence[i] == 1:
-                    justified = False
-                    #breakpoint()
-
-
-
-            
-            if justified:
-                pass
-                #print("Justified zero query: " + query + " -> " + str(uid[query[1:]]))
-                #print("Parent queries: " + str(conQueries[query]["parentQueries"]))
-                #print("Child queries: " + str([q for q in conQueries.keys() if query in conQueries[q]["parentQueries"]]))
-            else:
-                pass
-                #print(query)
-                #breakpoint()
-                #print("Unjustified zero query: " + query + " -> " + str(uid[query[1:]]))
-                #print("Parent queries: " + str(conQueries[query]["parentQueries"]))
-                #print("Child queries: " + str([q for q in conQueries.keys() if query in conQueries[q]["parentQueries"]]))
-        #print("Modified Total", totalAssignmentProbability)
-        """
+ 
         conQueryEvaluation[query] = totalAssignmentProbability
         conQueryPreconditionConstants[query] = preconditionConstant
 

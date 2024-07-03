@@ -23,12 +23,6 @@ save: if we should save the model to a file (pickle)
 debug: 0 = nothing, 1 = status, 2 = verbose
 progressBar: if we should show a progress bar on long for loops
 """
-#TESTING:
-#c_min = 10
-#c_max = 36
-#m_min = 4
-#m_max = 29
-#mb.setupGraph("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", 10, 36, 4, 29, save=True, debug=1, progressBar=True)
 def setupGraph(modelFolder, dataFolder, modelName, colour_min, colour_max, maturation_min, maturation_max, save=True, debug=0, progressBar=False):
     # Load progress bar if requested.
     if progressBar:
@@ -147,9 +141,6 @@ progressBar: if we should show a progress bar on long for loops
 safeMode: if we should use the BayesianNetwork.add_cpds. It's slower but does checks.
 loadedModel: if we should use a model already in memory instead of loading one.
 """
-#TESTING:
-#mb.addDelayFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_None_None", "functions/colourDelayFunctionUniform.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=None)
-#mb.addDelayFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_colourDelayFunctionUniform_None", "functions/maturationDelayFunctionNormal.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=None)
 def addDelayFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, delayFunctionPickleFile, save=True, debug=0, progressBar=False, safeMode=False, loadedModel=None):
     if progressBar:
         import tqdm
@@ -226,8 +217,6 @@ safeMode: if we should use the BayesianNetwork.add_cpds. It's slower but does ch
 loadedModel: if we should use a model already in memory instead of loading one.
 saveConjugationFunction: if we should save the conjugation function with loaded data for use later.
 """
-#TESTING:
-#mb.addConjugationFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_colourDelayFunctionUniform_maturationDelayFunctionNormal", "functions/contactWeightsFixedNaive.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=None, saveConjugationFunction=True)
 def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, conjugationFunctionPickleFile, save=True, debug=0, progressBar=False, safeMode=False, loadedModel=None, saveConjugationFunction=True):
     if progressBar:
         import tqdm
@@ -311,8 +300,3 @@ def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExten
 
     return model
 
-#import plplpl.model.model_builder as mb
-#mb.addConjugationFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_colourDelayFunctionUniform_maturationDelayFunctionNormal", "functions/contactWeightsFixedNaive.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=mb.addDelayFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_None_None", "functions/colourDelayFunctionUniform.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=mb.addDelayFunctionToModel("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", "_None_colourDelayFunctionUniform_None", "functions/maturationDelayFunctionNormal.pickle", save=True, debug=1, progressBar=True, safeMode=False, loadedModel=mb.setupGraph("data/trap6test/", "data/trap6test/trap6test_data/", "trap6test", 10, 36, 4, 29, save=True, debug=1, progressBar=True))), saveConjugationFunction=False)
-
-
-# c23621_103

@@ -198,23 +198,6 @@ def get_evidence(modelFolder, dataFolder, modelName, modelExtension, colour_min=
                                 if grandChild[0] == currentNode[0]:
                                     queue.append(grandChild)
 
-                    """
-                    for parent in list(model.predecessors("g"+name[child])):
-                        model.remove_edge(parent, "g"+name[child])
-                    model.remove_cpds("g"+name[child])
-                    model.add_cpds(BinaryNoisyOrCPD("g"+name[child], 0))
-
-                    for parent in list(model.predecessors("c"+name[child])):
-                        model.remove_edge(parent, "c"+name[child])
-                    model.remove_cpds("c"+name[child])
-                    model.add_cpds(BinaryNoisyOrCPD("c"+name[child], 0))
-
-                    for parent in list(model.predecessors("m"+name[child])):
-                        model.remove_edge(parent, "m"+name[child])
-                    model.remove_cpds("m"+name[child])
-                    model.add_cpds(BinaryNoisyOrCPD("m"+name[child], 0))
-                    """
-
     if debug >= 1:
         print("Finished handling contradictions in model. Found " + str(count) + ". Adding in synchrony evidence.")
 
