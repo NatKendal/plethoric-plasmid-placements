@@ -26,8 +26,8 @@ def getContactBoundary(endpoints1, width1, endpoints2, width2, epsilon=0.4,tol=1
     p2 = sg.Polygon(corners2)
 
     boundary = p2.boundary
-    print(p1,p2)
-    print(boundary)
+    #print(p1,p2)
+    #print(boundary)
 
     result = p1.intersection(boundary).length
     

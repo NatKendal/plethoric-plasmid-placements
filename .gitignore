@@ -10,3 +10,4 @@ plplpl/backup/*
 data/*
 !data/FOLDERS_WITH_INDIVIDUAL_MODELS_GO_HERE
 Experiment1/rawFiles/*
+Experiment1/*
