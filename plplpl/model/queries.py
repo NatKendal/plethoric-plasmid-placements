@@ -426,14 +426,25 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
                         # It's pointing to something that doesn't have a knowable truth, so we just ignore it.
                         #print("At " + hidden + " we have that " + grandChild + " should be in a critical region, but isn't.")
                         #raise AssertionError("At " + hidden + " we have that " + grandChild + " should be in a critical region, but isn't.")
-    
-        completeConjugateQueries[query] = {"query":queryVariables, "critical":criticalRegion, "unknown":queryForcedUnknown, "colourEvidence":queryColourEvidence, "lineage":queryLineage, "hidden":queryHidden, "hardEvidence":queryHardEvidence, "incoming":queryIncomingMature, "connectedDown":connectedDownwardQueries, "downwardZero":queryDownwardGeneZero, "parentQueries":set([q for q in childQueries if query in childQueries[q]]), "zeroParent":queryZeroParent}
+
+        if query not in childQueries:
+            childQueries[query] = set()
+        completeConjugateQueries[query] = {"query":queryVariables, "critical":criticalRegion, "unknown":queryForcedUnknown, "colourEvidence":queryColourEvidence, "lineage":queryLineage, "hidden":queryHidden, "hardEvidence":queryHardEvidence, "incoming":queryIncomingMature, "connectedDown":connectedDownwardQueries, "downwardZero":queryDownwardGeneZero, "parentQueries":set([q for q in childQueries if query in childQueries[q]]), "childQueries":childQueries[query].copy(), "zeroParent":queryZeroParent}
 
     for query in list(completeConjugateQueries.keys()):
         for key in completeConjugateQueries[query].keys():
             if key == "connectedDown":
                 continue
             completeConjugateQueries[query][key] = list(completeConjugateQueries[query][key])
+
+    fullQueries = dict()
+    for query in list(completeConjugateQueries.keys()):
+        parent = query
+        while len(completeConjugateQueries[parent]["parentQueries"]) != 0:
+            parent = completeConjugateQueries[parent]["parentQueries"][0]
+        if parent not in fullQueries:
+            fullQueries[parent] = set()
+        fullQueries[parent].add(query)
 
     #
     # False Positive Queries:
@@ -479,5 +490,7 @@ def build_queries(modelFolder, dataFolder, modelName, modelExtension, save=True,
             pickle.dump(nonConjugateQueries, f)
         with open(modelFolder + modelName + "_modeldata" + modelExtension + "_queryEdgeList.pickle", "wb") as f:
             pickle.dump(sorted(list(allEdges)), f)
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_fullQueries.pickle", "wb") as f:
+            pickle.dump(fullQueries, f)
 
-    return completeConjugateQueries, nonConjugateQueries, sorted(list(allEdges))
+    return completeConjugateQueries, nonConjugateQueries, sorted(list(allEdges)), fullQueries

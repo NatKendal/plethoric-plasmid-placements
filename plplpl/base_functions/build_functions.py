@@ -13,7 +13,11 @@ def buildFunctions(location, force=False):
         ColourDelayFunctionUniform(),
         ContactWeightsBaseline(),
         MaturationDelayFunctionNormalShort(),
-        ColourDelayFunctionNormal()
+        ColourDelayFunctionNormal(),
+        ColourDelayFunctionNormalSkewed(),
+        MaturationDelayFunctionUniform(),
+        ContactWeightsArea(),
+        ContactWeightsBoundary()
     ]
 
     for function in functionList:
