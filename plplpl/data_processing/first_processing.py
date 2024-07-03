@@ -4,7 +4,7 @@ import os
 import pickle
 import sys
 
-MAX_DISTANCE = 10
+MAX_DISTANCE = 15
 # ------------------------------------------------------------------
 ### Getting the data organized
 # ------------------------------------------------------------------
