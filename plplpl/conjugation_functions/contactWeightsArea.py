@@ -7,7 +7,7 @@ from plplpl.conjugation_functions.boundingBoxes import calcBox, extendDonorEnds
 # for the edge cell1 --> cell2
 # input: endpoints + widths of two cells to compare, epsilon to extend cell1 by, tolerance for min area
 # output: area of cell2 in range of cell1
-def getContactArea(endpoints1, width1, endpoints2, width2, epsilon=0.4,tol=1e-3):
+def getContactArea(endpoints1, width1, endpoints2, width2, epsilon=0.4,tol=1e-6):
 
     # cell 1 is acting like donor, so bound with hexagon
     # get the corners of the rectangular portion, then add the ends
