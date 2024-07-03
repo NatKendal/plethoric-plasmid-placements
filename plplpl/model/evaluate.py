@@ -233,11 +233,14 @@ def blockBuilder(model, node, endpoints, source=None):
 
 # Helper function to merge queries together recursively.
 def queryMergeHelper(conQueries, evaluations, precons, query):
-    children = []
-    for child in conQueries[query]["childQueries"]:
-        children.append(queryMergeHelper(conQueries, evaluations, precons, child))
-    childChance = math.prod(children)
-    return (evaluations[query] + childChance - (evaluations[query] * childChance))
+    if len(conQueries[query]["childQueries"]) > 0:
+        children = []
+        for child in conQueries[query]["childQueries"]:
+            children.append(queryMergeHelper(conQueries, evaluations, precons, child))
+        childChance = precons[query] * math.prod(children)
+        return (evaluations[query] + childChance - (evaluations[query] * childChance))
+    else:
+        return evaluations[query]
 
 def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True, debug=0, progressBar=False, loadedModel=None, loadedEvidence=None, loadedConjugateQueries=None, loadedNonConjugateQueries=None, loadedFullQueries=None, loadedNaiveProbabilities=None, loadedIncomingProbabilities=None):
 
