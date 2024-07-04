@@ -17,6 +17,7 @@ modelExtension: model extension in the form `_[conjugation function]_[colour fun
 save: if we should save the model to a file (pickle)
 debug: 0 = nothing, 1 = status, 2 = verbose
 progressBar: if we should show a progress bar on long for loops
+cacheObjects: if we should keep a reference to used objects while computing queries.
 loadedModel: if we should use a model already in memory instead of loading one.
 loadedEvidence: if we should use evidence already in memory instead of loading it.
 loadedConjugateQueries: if we should use conjugate queries already in memory instead of loading them.
@@ -238,11 +239,13 @@ def queryMergeHelper(conQueries, evaluations, precons, query):
         for child in conQueries[query]["childQueries"]:
             children.append(queryMergeHelper(conQueries, evaluations, precons, child))
         childChance = precons[query] * math.prod(children)
-        return (evaluations[query] + childChance - (evaluations[query] * childChance))
+        #return (evaluations[query] + childChance - (evaluations[query] * childChance))
+        # This not the above because it isn't an OR, it's the sum of probability of all query assignments that we accept.
+        return evaluations[query] + childChance
     else:
         return evaluations[query]
 
-def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True, debug=0, progressBar=False, loadedModel=None, loadedEvidence=None, loadedConjugateQueries=None, loadedNonConjugateQueries=None, loadedFullQueries=None, loadedNaiveProbabilities=None, loadedIncomingProbabilities=None):
+def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True, debug=0, progressBar=False, cacheObjects=True, loadedModel=None, loadedEvidence=None, loadedConjugateQueries=None, loadedNonConjugateQueries=None, loadedFullQueries=None, loadedNaiveProbabilities=None, loadedIncomingProbabilities=None):
 
     # Set this to a specific query to skip directly to it and then enter debugger just before calculating it.
     manualDebug = None
@@ -321,6 +324,7 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
 
     conQueryEvaluation = dict()
     conQueryPreconditionConstants = dict()
+    cachedObjects = list()
 
     if debug >= 1:
         print("Starting evaluation of conjugate queries.")
@@ -1178,6 +1182,9 @@ def evaluateModel(modelFolder, dataFolder, modelName, modelExtension, save=True,
             finalFactor = completeAssignmentFactor
 
             finishedFactors.append(finalFactor)
+
+            if cacheObjects:
+                cachedObjects.append(finalFactor)
 
             if progressBar:
                 nestedIterator.set_description(desc="Doing final calculation                       ")

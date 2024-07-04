@@ -1,6 +1,6 @@
 from collections import ChainMap
 import itertools
-#from weakref import WeakValueDictionary
+from weakref import WeakValueDictionary
 
 #from pgmpy.factors.discrete import DiscreteFactor
 from plplpl.NoisyOr import BinaryNoisyOrCPD
@@ -26,8 +26,9 @@ class NoisyOrFactor(object):
 
     """
     # Experimental pointer saving
-    #_registry = WeakValueDictionary()
-    _registry = dict()
+    # Weak value should play better with multicore and also sequential runs.
+    _registry = WeakValueDictionary()
+    #_registry = dict()
     def __new__(cls, operation, references, argument=[]):
         factorID = (operation, tuple(sorted([id(ref) for ref in references])), tuple(sorted(argument)))
         if factorID in cls._registry:

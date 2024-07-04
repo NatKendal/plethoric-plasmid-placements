@@ -8,20 +8,18 @@ from plplpl.model import addDelayFunctionToModel
 from plplpl.model import addConjugationFunctionToModel
 
 from plplpl.model import get_evidence
-
 from plplpl.model import build_queries
-
 from plplpl.model import normalizeModel
-
 from plplpl.model import calculateNaiveProbabilities
-
 from plplpl.model import evaluateModel
 
-from multiprocessing import Pool
+from plplpl.NoisyOr import NoisyOrFactor
 
+from multiprocessing import Pool
+from pathlib import Path
+from weakref import WeakValueDictionary
 
 import gc
-from pathlib import Path
 import pickle
 import sys
 
@@ -50,13 +48,22 @@ def experiment2():
 def experiment3(trapFile):
     metaFolder = "Experiment3/"
     functionFolder = "functions/"
-    inputFiles = ["Experiment1/rawFiles/" + trapFile]
+    inputFiles = ["Experiment3/rawFiles/" + trapFile]
     transmissionFunctions = ["contactWeightsBaseline", "contactWeightsBoundary", "contactWeightsArea"]
     colourFunctions = [("colourDelayFunctionNormal", 6, 30), ("colourDelayFunctionNormalSkewed", 6, 30)]
     maturationFunctions = [("maturationDelayFunctionNormal", 6, 18), ("maturationDelayFunctionNormalSkewed", 6, 18)]
     multiRun(metaFolder, functionFolder, inputFiles, transmissionFunctions, colourFunctions, maturationFunctions, save=True, progressBar=True, debug=1)
 
+def experiment4():
+    metaFolder = "Experiment4/"
+    functionFolder = "functions/"
+    inputFiles = ["Experiment4/rawFiles/trap1.csv", "Experiment4/rawFiles/trap2.csv", "Experiment4/rawFiles/trap3.csv", "Experiment4/rawFiles/trap4.csv", "Experiment4/rawFiles/trap5.csv", "Experiment4/rawFiles/trap8.csv", "Experiment4/rawFiles/trap10.csv", "Experiment4/rawFiles/trap11.csv", "Experiment4/rawFiles/trap13.csv", "Experiment4/rawFiles/trap14.csv", "Experiment4/rawFiles/trap18.csv"]
+    transmissionFunctions = ["contactWeightsBaseline", "contactWeightsBoundary", "contactWeightsArea"]
+    colourFunctions = [("colourDelayFunctionNormal", 6, 30), ("colourDelayFunctionNormalSkewed", 6, 30)]
+    maturationFunctions = [("maturationDelayFunctionNormal", 6, 18), ("maturationDelayFunctionNormalSkewed", 6, 18)]
+    multiRun(metaFolder, functionFolder, inputFiles, transmissionFunctions, colourFunctions, maturationFunctions, save=True, progressBar=True, debug=1)
 
+# NOTE: This might not work properly with the NoisyOrFactor registry!
 def multiCoreMultiRun(metaFolder, functionFolder, inputFiles, transmissionFunctions, colourFunctions, maturationFunctions, save=True, cores=1):
     metaFolder = metaFolder + "/"
     Path(metaFolder).mkdir(parents=True, exist_ok=True)
@@ -97,7 +104,10 @@ def multiRun(metaFolder, functionFolder, inputFiles, transmissionFunctions, colo
                     print("Finished run " + str(run) + " of " + str(total))
                     rebuildFunctions = False
 
-def fullRun(rawInputFile, modelName, modelFolder, dataFolder, functionFolder, transmissionFunctionName, colourDelayFunctionName, colour_min, colour_max, maturationDelayFunctionName, maturation_min, maturation_max, save=True, progressBar=False, debug=0, rebuildFunctions=False, statusUpdates=True):
+def fullRun(rawInputFile, modelName, modelFolder, dataFolder, functionFolder, transmissionFunctionName, colourDelayFunctionName, colour_min, colour_max, maturationDelayFunctionName, maturation_min, maturation_max, save=True, progressBar=False, debug=0, rebuildFunctions=False, statusUpdates=True, clearRegistry=True):
+
+    if clearRegistry:
+        NoisyOrFactor._registry = WeakValueDictionary()
 
     modelFolder = modelFolder + "/"
     dataFolder = dataFolder + "/"
@@ -199,7 +209,7 @@ def strtobool(val):
 if __name__ == "__main__":
     if True:
         if len(sys.argv) == 18:
-            fullRun(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], int(sys.argv[8]), int(sys.argv[9]), sys.argv[10], int(sys.argv[11]), int(sys.argv[12]), save=bool(strtobool(sys.argv[13])), progressBar=bool(strtobool(sys.argv[14])), debug=int(sys.argv[15]), rebuildFunctions=bool(strtobool(sys.argv[16])), statusUpdates=bool(strtobool(sys.argv[17])))
+            fullRun(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], int(sys.argv[8]), int(sys.argv[9]), sys.argv[10], int(sys.argv[11]), int(sys.argv[12]), save=bool(strtobool(sys.argv[13])), progressBar=bool(strtobool(sys.argv[14])), debug=int(sys.argv[15]), rebuildFunctions=bool(strtobool(sys.argv[16])), statusUpdates=bool(strtobool(sys.argv[17])), clearRegistry=bool(strtobool(sys.argv[18])))
         else:
             print("Expected 17 arguments for:")
-            print("fullRun(rawInputFile, modelName, modelFolder, dataFolder, functionFolder, transmissionFunctionName, colourDelayFunctionName, colour_min, colour_max, maturationDelayFunctionName, maturation_min, maturation_max, save=True, progressBar=False, debug=0, rebuildFunctions=False, statusUpdates=True)")
+            print("fullRun(rawInputFile, modelName, modelFolder, dataFolder, functionFolder, transmissionFunctionName, colourDelayFunctionName, colour_min, colour_max, maturationDelayFunctionName, maturation_min, maturation_max, save=True, progressBar=False, debug=0, rebuildFunctions=False, statusUpdates=True, clearRegistry=True)")
