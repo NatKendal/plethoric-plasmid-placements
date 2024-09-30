@@ -1,23 +1,182 @@
-import collections
+from collections import deque
+
 import pickle
 
-from plplpl.NoisyOr import NoisyOrBayesianNetwork
+def naiveCalcNode(model, directParents, naiveProbabilities, treatAsZero, node, previousProbability):
+    kwargs = dict()
+    missing = set()
+    for parent in model.parents(node):
+        if parent == directParents[node]:
+            kwargs[parent] = previousProbability
+        elif parent in treatAsZero:
+            kwargs[parent] = 0
+        else:
+            if parent in naiveProbabilities:
+                kwargs[parent] = naiveProbabilities[parent]
+            else:
+                kwargs[parent] = 0
+                missing.add(parent)
+    kwargs[node] = 1
+    return model.cpd(node).get_value(**kwargs), missing
 
-"""
-modelFolder: path to directory
-dataFolder: path to directory
-modelName: unique name for this model/computation
-modelExtension: model extension in the form `_[conjugation function]_[colour function]_[maturation function]` (don't include _contradictionsPruned_normalized.pickle)
-save: if we should save the model to a file (pickle)
-debug: 0 = nothing, 1 = status, 2 = verbose
-progressBar: if we should show a progress bar on long for loops
-loadedModel: if we should use a model already in memory instead of loading one.
-loadedEvidence: if we should use evidence already in memory instead of loading it.
-loadedConjugateQueries: if we should use conjugate queries already in memory instead of loading them.
-loadedFullQueries: if we should use full queries already in memory instead of loading them.
-"""
+# Calculate chance of getting plasmid at each point, including probability of correct lightups.
+def calcSegmentReceptionChances(model, directParents, directChildren, queries, colourFunction, naiveProbabilities, treatAsZero, relevantLightups, segment):
+    segmentProbability = dict()
+    missing = set()
+    for node in segment:
+        # Get the probability assuming that node's parent didn't have it.
+        workingProbability, newMissing = naiveCalcNode(model, directParents, naiveProbabilities, treatAsZero, node, 0)
+        missing = missing.union(newMissing)
+        # Adjust by the probability of lightups happening at the given delta.
+        for lightup in relevantLightups[segment]:
+            workingProbability *= colourFunction.value(abs(int(lightup.split("_")[1]) - int(node.split("_")[1])))
+        # Save the probability.
+        segmentProbability[node] = workingProbability
+    return segmentProbability, missing
 
-def calculateNaiveProbabilities(modelFolder, dataFolder, modelName, modelExtension, save=True, debug=0, progressBar=False, loadedModel=None, loadedEvidence=None, loadedConjugateQueries=None, loadedFullQueries=None):
+# Recursive subprocess for calcSegmentFromRoot
+def recursiveCalcSegmentHelper(model, directParents, queries, criticalSegments, colourFunction, naiveProbabilities, relevantLightups, live, treatAsZero, allSegmentProbabilities, precondition, segment, includeSelf):
+    satisfactionProbability = 1.0
+    missing = set()
+    if includeSelf:
+        for node in segment:
+            precondition = precondition + ((1-precondition) * allSegmentProbabilities[node])
+    if segment in criticalSegments["children"]:
+        for child in criticalSegments["children"][segment]:
+            if child in queries:
+                prob, newMissing = naiveCalcNode(model, directParents, naiveProbabilities, treatAsZero, child, precondition)
+                satisfactionProbability *= prob
+                missing = missing.union(newMissing)
+                for lightup in relevantLightups[segment]:
+                    satisfactionProbability *= colourFunction.value(abs(int(lightup.split("_")[1]) - int(child.split("_")[1])))
+            elif child in live:
+                prob, newMissing = recursiveCalcSegmentHelper(model, directParents, queries, criticalSegments, colourFunction, naiveProbabilities, relevantLightups, live, treatAsZero, allSegmentProbabilities, precondition, child, True)
+                satisfactionProbability *= prob
+                missing = missing.union(newMissing)
+    return satisfactionProbability, missing
+
+# Check if some critical regions should be rescaled since we know they are satisfied.
+def calcSegmentFromRoot(model, directParents, directChildren, evidence, queries, criticalSegments, colourFunction, naiveProbabilities, treatAsZero, rootSegment):
+    colour_max = model.constants["colour_max"]
+    # Given a root critical segment, first determine if it has children that have to be forced to 1.
+    live = set()
+    seen = set()
+    endpoints = set()
+    relevantLightups = dict()
+    missing = set()
+    queue = deque()
+    queue.append((rootSegment, [rootSegment]))
+    while queue:
+        segment, path = queue.popleft()
+        seen.add(segment)
+        if segment in criticalSegments["children"]:
+            for child in criticalSegments["children"][segment]:
+                if (child in evidence) and (evidence[child] == 1):
+                    endpoints.add(child)
+                    # Start by identifying the lightup event(s) downstream from this certain gene node.
+                    depth = 0
+                    grandChildren = [child]
+                    newLightups = []
+                    while depth <= colour_max:
+                        newGrandChildren = []
+                        for grandChild in grandChildren:
+                            for greatGrandChild in directChildren[grandChild]:
+                                if greatGrandChild in queries.keys():
+                                    newLightups.append(greatGrandChild)
+                                else:
+                                    newGrandChildren.append(greatGrandChild)
+                        grandChildren = newGrandChildren
+                        depth += 1
+                    # Note each lightup event as relevant for each segment on the path towards here.
+                    # Also note those paths as live.
+                    for pathSegment in path:
+                        live.add(pathSegment)
+                        if pathSegment not in relevantLightups:
+                            relevantLightups[pathSegment] = []
+                        for lightup in newLightups:
+                            relevantLightups[pathSegment].append(lightup)
+                elif child in criticalSegments["set"]:
+                    queue.append((child, path + [child]))
+                else:
+                    print("Something went wrong at " + str(rootSegment) + "/" + str(segment))
+
+    # Handle the live segments, the ones that lead to a 1.
+    # Compute the chances of reception at each live point.
+    allSegmentProbabilities = dict()
+    for segment in live:
+        segmentProbability, newMissing = calcSegmentReceptionChances(model, directParents, directChildren, queries, colourFunction, naiveProbabilities, treatAsZero, relevantLightups, segment)
+        missing = missing.union(newMissing)
+        for node in segment:
+            allSegmentProbabilities[node] = segmentProbability[node]
+
+    # Calculate the new naive probabilities.
+    newNaiveProbabilities = dict()
+    queue = deque()
+    queue.append((rootSegment, 0.0))
+    while queue:
+        segment, probability = queue.popleft()
+        if segment in live: # Segments with a child that has evidence = 1
+            for node in segment:
+                probability = probability + ((1-probability) * allSegmentProbabilities[node])
+                newNaiveProbabilities[node] = probability
+            childrenSatisfactionChance, newMissing = recursiveCalcSegmentHelper(model, directParents, queries, criticalSegments, colourFunction, naiveProbabilities, relevantLightups, live, treatAsZero, allSegmentProbabilities, 0.0, segment, False)
+            missing = missing.union(newMissing)
+            constantModifier = newNaiveProbabilities[segment[-1]] + ((1-newNaiveProbabilities[segment[-1]]) * childrenSatisfactionChance)
+            for node in segment:
+                newNaiveProbabilities[node] = newNaiveProbabilities[node]/constantModifier
+            if segment in criticalSegments["children"]:
+                for child in criticalSegments["children"][segment]:
+                    if child in evidence:
+                        newNaiveProbabilities[child] = 1
+                    else:
+                        queue.append((child, newNaiveProbabilities[segment[-1]]))
+        else: # Segments that don't lead to any evidence.
+            for node in segment:
+                prob, newMissing = naiveCalcNode(model, directParents, naiveProbabilities, treatAsZero, node, 0.0)
+                missing = missing.union(newMissing)
+                probability = probability + ((1-probability) * prob)
+                newNaiveProbabilities[node] = probability
+            if segment in criticalSegments["children"]:
+                for child in criticalSegments["children"][segment]:
+                    queue.append((child, newNaiveProbabilities[segment[-1]]))
+
+    return newNaiveProbabilities, missing
+
+def recursivelySolve(model, directParents, directChildren, evidence, queries, criticalSegments, colourFunction, segmentGroupMaturationNodes, naiveProbabilities, treatAsZero, rootSegment, depth, maxDepth):
+    tempNaiveProbabilities = naiveProbabilities.copy()
+    newTreatAsZero = treatAsZero.union(segmentGroupMaturationNodes[rootSegment])
+
+    newNaiveProbabilities, missing = calcSegmentFromRoot(model, directParents, directChildren, evidence, queries, criticalSegments, colourFunction, tempNaiveProbabilities, newTreatAsZero, rootSegment)
+
+    if depth < maxDepth:
+        otherRoots = set()
+        for node in missing:
+            for otherRoot in segmentGroupMaturationNodes.keys():
+                if node in segmentGroupMaturationNodes[otherRoot]:
+                    otherRoots.add(otherRoot)
+                    break
+            else:
+                raise ValueError("Failed to find missing value " + str(missing) + " when handling " + str(rootSegment) + ".")
+        for otherRoot in otherRoots:
+            recursiveNaiveProbabilities = recursivelySolve(model, directParents, directChildren, evidence, queries, criticalSegments, colourFunction, segmentGroupMaturationNodes, naiveProbabilities, newTreatAsZero, otherRoot, depth+1, maxDepth)
+            tempNaiveProbabilities.update(recursiveNaiveProbabilities)
+
+        newNaiveProbabilities, missing = calcSegmentFromRoot(model, directParents, directChildren, evidence, queries, criticalSegments, colourFunction, tempNaiveProbabilities, newTreatAsZero, rootSegment)
+    
+    for maturation in sorted(segmentGroupMaturationNodes[rootSegment], key=lambda x: int(x.split("_")[1])):
+        parentVal = 0.0
+        if directParents[maturation]:
+            if directParents[maturation] in newNaiveProbabilities:
+                parentVal = newNaiveProbabilities[directParents[maturation]]
+            elif directParents[maturation] in naiveProbabilities:
+                parentVal = naiveProbabilities[directParents[maturation]]
+            else:
+                print("SOMETHING WENT WRONG!")
+                breakpoint()
+        newNaiveProbabilities[maturation], _ = naiveCalcNode(model, directParents, newNaiveProbabilities, treatAsZero, maturation, parentVal)
+    return newNaiveProbabilities
+
+def computeNaiveProbabilities(modelFolder, dataFolder, modelName, modelExtension, modelExtensionExtra, colourFunctionPickleFile, depth=1, save=True, debug=0, progressBar=False, loadedModel=None):
     if progressBar:
         import tqdm
 
@@ -26,296 +185,115 @@ def calculateNaiveProbabilities(modelFolder, dataFolder, modelName, modelExtensi
     if loadedModel:
         model = loadedModel
     else:
-        with open(modelFolder + modelName + "_model" + modelExtension + "_contradictionsPruned_normalized.pickle", "rb") as f:
+        with open(modelFolder + modelName + "_model" + modelExtension + modelExtensionExtra + ".pickle", "rb") as f:
             model = pickle.load(f)
+
+    directParents = model.getDirectParents()
+    directChildren = model.getDirectChildren()
 
     if debug >= 1:
         print("Loading evidence.")
-    if loadedEvidence:
-        evidence = loadedEvidence
-    else:
-        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_evidence.pickle", "rb") as f:
-            evidence = pickle.load(f)
+    with open(modelFolder + modelName + "_modeldata" + modelExtension + "_evidence.pickle", "rb") as f:
+        evidence = pickle.load(f)
 
     if debug >= 1:
-        print("Loading Conjugate Queries.")
-    if loadedConjugateQueries:
-        conQueries = loadedConjugateQueries
-    else:
-        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_completeConjugateQueries.pickle", "rb") as f:
-            conQueries = pickle.load(f)
+        print("Loading queries.")
+    with open(modelFolder + modelName + "_modeldata" + modelExtension + "_queries.pickle", "rb") as f:
+        queries = pickle.load(f)
 
     if debug >= 1:
-        print("Loading Full Queries.")
-    if loadedFullQueries:
-        fullQueries = loadedFullQueries
-    else:
-        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_fullQueries.pickle", "rb") as f:
-            fullQueries = pickle.load(f)
+        print("Loading critical segments.")
+    with open(modelFolder + modelName + "_modeldata" + modelExtension + "_criticalSegments.pickle", "rb") as f:
+        criticalSegments = pickle.load(f)
 
-    # Final output dictionary.
+    if debug >= 1:
+        print("Loading colour function.")
+    with open(colourFunctionPickleFile, "rb") as f:
+        colourFunction = pickle.load(f)
+
+    if not colourFunction.checkConstants(model):
+        print("CONSTANTS CHECK FAILED!")
+        exit()
+
+    if debug >= 1:
+        print("Initializing naive probabilities and critical segment groups.")
     naiveProbabilities = dict()
-    # Stack of extra queries to compute in two stage approach.
-    linkedQueries = set()
-    # Queries examined so far in two stage approach.
-    currentQueries = set()
-    # Finished queries.
-    finishedQueries = set()
-    # Keeping track of maturation nodes.
-    maturationNodes = dict()
 
-    # Subprocess for recursion when calculating one node.
-    # If force=True, then recompute even if the node is in naiveProbabilities or evidence.
-    def doNode(node, destination, force=False, ignore={}):
-        # If it's already done and we don't want to force, skip.
-        if (node in naiveProbabilities) and (not force):
-            return
-        # If we have evidence and we don't want to force, just use the evidence value.
-        if (node in evidence) and (not force):
-            if node in conQueries: # Note that if it's in evidence because it's a query node, skip it.
-                return
-            naiveProbabilities[node] = evidence[node]
-            return
-        # If it's a maturation node downstream from a query and we don't want to force, find the recursive query and skip.
-        if (node[0] == "m") and (not force):
-            for parent in model.predecessors(node):
-                if parent[0] == "g" and parent not in evidence:
-                    for query in conQueries:
-                        if parent in conQueries[query]["query"] or parent in conQueries[query]["critical"]:
-                            parentQuery = query
-                            while len(conQueries[parentQuery]["parentQueries"]) > 0:
-                                parentQuery = conQueries[parentQuery]["parentQueries"][0]
-                            linkedQueries.add(parentQuery)
-                            return
-
-        # Otherwise, compute it.
-        arguments = dict()
-        for parent in model.predecessors(node):
-            if parent in ignore:
-                arguments[parent] = 0
+    for vertex in evidence.keys():
+        # Add evidence to naive probabilities, except if the evidence node is the end of a critical region.
+        if (vertex[0] == "g") and (evidence[vertex] == 1) and directParents[vertex] and (directParents[vertex] not in evidence):
+            continue
+        else:
+            naiveProbabilities[vertex] = evidence[vertex]
+    
+    for vertex in sorted(model.vertices(), key=lambda x: int(x.split("_")[1])):
+        if vertex[0] != "m":
+            continue
+        if vertex in evidence:
+            continue
+        defined = True
+        for parent in model.parents(vertex):
+            if parent in naiveProbabilities:
                 continue
-
-            if parent not in naiveProbabilities:
-                doNode(parent, naiveProbabilities)
-            if parent not in naiveProbabilities:
-                arguments[parent] = 0
             else:
-                arguments[parent] = naiveProbabilities[parent]
-        destination[node] = model.get_cpds(node).get_self_values_with_uncertain_evidence(**arguments)[1][0]
+                defined = False
+        if defined:
+            naiveProbabilities[vertex], _ = naiveCalcNode(model, directParents, naiveProbabilities, set(), vertex, naiveProbabilities[directParents[vertex]] if directParents[vertex] else 0.0)
 
-    # Subprocess for handling a specific query.
-    def doQuery(query, destination, ignore={}):
-        currentQueries.add(query)
+    # Get the root critical segments, then sort them from earliest for processing.
+    criticalRoots = list()
+    for segment in criticalSegments["set"]:
+        if segment not in criticalSegments["parents"]:
+            criticalRoots.append(segment)
+    criticalRoots.sort(key=lambda x: int(x[0].split("_")[1]))
 
-        nodes = set()
-        allQueryNodes = set()
-        for q in fullQueries[query]:
-            for node in conQueries[q]["critical"]:
-                nodes.add(node)
-            for node in conQueries[q]["query"]:
-                nodes.add(node)
-                if len(conQueries[q]["childQueries"]) == 0:
-                    allQueryNodes.add(node)
-
-        # Include the gene nodes coming out of the query that disappear before evidence is given for them.
-        for node in list(nodes):
-            for child in model.successors(node):
-                if (child[0] == "g") and (child not in evidence) and (child not in nodes):
-                    queue = collections.deque()
-                    queue.append(child)
-                    while queue:
-                        grandChild = queue.popleft()
-                        nodes.add(grandChild)
-                        for greatGrandChild in model.successors(grandChild):
-                            if (greatGrandChild[0] == "g") and (greatGrandChild not in evidence) and (greatGrandChild not in nodes):
-                                queue.append(greatGrandChild)
-
-
-        for node in sorted(nodes, key=lambda x: int(x.split("_")[1])):
-            doNode(node, destination, force=True, ignore=ignore)
-
-        # After we naively calculate, we normalize the query's naive probability to ensure that the end of the query is 1.
-        finalProbability = min([destination[x] for x in allQueryNodes])
-        # If the query is zero, then it can't have received the gene EXCEPT for from a linked query.
-        # So we leave everything as zero for now and then recalculate later.
-        if finalProbability == 0:
-            return
-        for node in nodes:
-            destination[node] = min(destination[node]/finalProbability, 1)
-
-    # First: Go through the Conjugate Queries, calculating them naively and all their dependences.
-    # Note: Going through the full queries and adding in all children to calculate at once.
-    if debug >= 1:
-        print("Starting to naively calculate query nodes and dependences.")
-    if progressBar:
-        iterator = tqdm.tqdm(sorted(list(fullQueries.keys()), key=lambda x: min([int(y.split("_")[1]) for y in conQueries[x]["query"]+conQueries[x]["critical"]])))
-    else:
-        iterator = sorted(list(fullQueries.keys()), key=lambda x: min([int(y.split("_")[1]) for y in conQueries[x]["query"]+conQueries[x]["critical"]]))
-
-    for query in iterator:
-        if progressBar:
-            iterator.set_description(desc="Working on query " + query)
-        if debug >= 2:
-            print("Working on query " + query)
-
-        if query in finishedQueries:
-            continue
-
-        # Cleanup previously used dictionaries.
-        linkedQueries = set()
-        currentQueries = set()
-
-        # Calculate and normalize all linked queries independently.
-        doQuery(query, naiveProbabilities)
-        while len(linkedQueries) != 0:
-            subQuery = linkedQueries.pop()
-            if subQuery not in currentQueries:
-                doQuery(subQuery, naiveProbabilities)
-
-        # Calculate all the maturation node children from each linked query.
-        for currentQuery in currentQueries:
-            geneNodes = set()
-            for subQuery in fullQueries[currentQuery]:
-                for node in (conQueries[subQuery]["query"] + conQueries[subQuery]["critical"]):
-                    geneNodes.add(node)
-
-            # Include the gene nodes coming out of the query that disappear before evidence is given for them.
-            for node in list(geneNodes):
-                for child in model.successors(node):
-                    if (child[0] == "g") and (child not in evidence) and (child not in geneNodes):
-                        queue = collections.deque()
+    # Calculate all the variable maturation nodes downstream from each critical segment group.
+    segmentGroupMaturationNodes = dict()
+    for rootSegment in criticalRoots:
+        segmentGroupMaturationNodes[rootSegment] = set()
+        queue = deque()
+        queue.append(rootSegment)
+        while queue:
+            segment = queue.popleft()
+            if segment in criticalSegments["children"]:
+                for child in criticalSegments["children"][segment]:
+                    if child in criticalSegments["set"]:
                         queue.append(child)
-                        while queue:
-                            grandChild = queue.popleft()
-                            geneNodes.add(grandChild)
-                            for greatGrandChild in model.successors(grandChild):
-                                if (greatGrandChild[0] == "g") and (greatGrandChild not in evidence) and (greatGrandChild not in geneNodes):
-                                    queue.append(greatGrandChild)
+                    else:
+                        for grandChild in model.children(child):
+                            if (child[0] == "m") and (child not in evidence):
+                                segmentGroupMaturationNodes[rootSegment].add(child)
+            for node in segment:
+                for child in model.children(node):
+                    if (child[0] == "m") and (child not in evidence):
+                        segmentGroupMaturationNodes[rootSegment].add(child)
 
-            nodes = set()
-            for node in geneNodes:
-                for child in model.successors(node):
-                    if child[0] == "g":
-                        continue
-                    if child[0] == "c":
-                        continue
-                    nodes.add(child)
-
-            maturationNodes[currentQuery] = nodes
-        for currentQuery in currentQueries:
-            for maturation in sorted(maturationNodes[currentQuery], key=lambda x: int(x.split("_")[1])):
-                doNode(child, naiveProbabilities, force=True)
-
-        # Recalculate all linked queries using normalized results from independent case.
-        for subQuery in currentQueries:
-            # Recalculate critical region.
-            # We ignore the internal edges between two sibling nodes.
-            doQuery(query, naiveProbabilities, ignore=maturationNodes[subQuery])
-
-        for currentQuery in currentQueries:
-            for maturation in sorted(maturationNodes[currentQuery], key=lambda x: int(x.split("_")[1])):
-                doNode(child, naiveProbabilities, force=True)
-
-        # Note all the queries that have been handled.
-        for subQuery in currentQueries:
-            finishedQueries.add(subQuery)
-
-    # Second: Calculate everything remaining.
     if debug >= 1:
-        print("Finished naively calculating query nodes. Now calculating remaining nodes.")
+        print("Finished initializing naive probabilities and critical segment groups. Now calculating naive probabilities.")
+
     if progressBar:
-        iterator = tqdm.tqdm(sorted(list(model.nodes), key=lambda x: int(x.split("_")[1])))
+        iterator = tqdm.tqdm(criticalRoots)
     else:
-        iterator = sorted(model.nodes, key=lambda x: int(x.split("_")[1]))
-
-    for node in iterator:
-        if node not in naiveProbabilities:
-            if progressBar:
-                iterator.set_description(desc="Working on node " + node)
-            if debug >= 2:
-                print("Working on node " + node)
-
-            doNode(node, naiveProbabilities, force=True)
-
-
-    # Third: Calculate incoming probabilities of queries.
-    # i.e. probability given the normalized naive probability for every node and the precondition that your previous was 0.
-    incomingProbabilities = dict()
-    if debug >= 1:
-        print("Finished naive probability calculation. Doing special incoming naive probability calculation for queries.")
-    if progressBar:
-        iterator = tqdm.tqdm(sorted(list(fullQueries.keys()), key=lambda x: min([int(y.split("_")[1]) for y in conQueries[x]["query"]+conQueries[x]["critical"]])))
-    else:
-        iterator = sorted(list(fullQueries.keys()), key=lambda x: min([int(y.split("_")[1]) for y in conQueries[x]["query"]+conQueries[x]["critical"]]))
-
-    for query in iterator:
+        iterator = criticalRoots
+    for rootSegment in iterator:
         if progressBar:
-            iterator.set_description(desc="Working on query " + query)
+            iterator.set_description(desc="Working on critical segment starting at " + str(rootSegment[0]))
         if debug >= 2:
-            print("Working on query " + query)
+            print("Working on critical segment starting at " + str(rootSegment[0]))
+        naiveProbabilities.update(recursivelySolve(model, directParents, directChildren, evidence, queries, criticalSegments, colourFunction, segmentGroupMaturationNodes, naiveProbabilities, set(), rootSegment, 0, depth))
 
-        nodes = set()
-        for subQuery in fullQueries[query]:
-            for node in conQueries[subQuery]["critical"]:
-                nodes.add(node)
-            for node in conQueries[subQuery]["query"]:
-                nodes.add(node)
-
-        # Include the gene nodes coming out of the query that disappear before evidence is given for them.
-        for node in list(nodes):
-            for child in model.successors(node):
-                if (child[0] == "g") and (child not in evidence) and (child not in nodes):
-                    queue = collections.deque()
-                    queue.append(child)
-                    while queue:
-                        grandChild = queue.popleft()
-                        nodes.add(grandChild)
-                        for greatGrandChild in model.successors(grandChild):
-                            if (greatGrandChild[0] == "g") and (greatGrandChild not in evidence) and (greatGrandChild not in nodes):
-                                queue.append(greatGrandChild)
-
-        for node in nodes:
-            arguments = dict()
-            for parent in model.predecessors(node):
-                if parent[0] == "g":
-                    arguments[parent] = 0 # Assume previous node is zero.
-                elif parent in maturationNodes[query]:
-                    arguments[parent] = 0 # Discount internal edges of a query.
-                else:
-                    arguments[parent] = naiveProbabilities[parent]
-            incomingProbabilities[node] = model.get_cpds(node).get_self_values_with_uncertain_evidence(**arguments)[1][0]
-
-    # Fourth: Calculate incoming probabilities of everything else.
     if debug >= 1:
-        print("Finished special incoming naive probability calculation for queries. Doing special incoming naive probability calculation for remaining nodes.")
-    if progressBar:
-        iterator = tqdm.tqdm(sorted(model.nodes, key=lambda x: int(x.split("_")[1])))
-    else:
-        iterator = sorted(model.nodes, key=lambda x: int(x.split("_")[1]))
+        print("Finished calculating naive probabilities.")
 
-    for node in iterator:
-        if node in incomingProbabilities:
-            continue
-
-        if progressBar:
-            iterator.set_description(desc="Working on node " + node)
-        if debug >= 2:
-            print("Working on node " + node)
-
-        arguments = dict()
-        for parent in model.predecessors(node):
-            if parent[0] == node[0]:
-                arguments[parent] = 0 # Assume previous node is zero.
-            else:
-                arguments[parent] = naiveProbabilities[parent]
-        incomingProbabilities[node] = model.get_cpds(node).get_self_values_with_uncertain_evidence(**arguments)[1][0] 
+    for vertex in model:
+        if vertex not in naiveProbabilities:
+            print("ERROR OCCURRED! MISSING " + vertex)
 
     if save:
         if debug >= 1:
             print("Saving naive probabilities.")
-        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_naiveProbabilities.pickle", "wb") as f:
+        modelExtension = colourFunction.injectName(modelExtension)
+        with open(modelFolder + modelName + "_modeldata" + modelExtension + modelExtensionExtra + "_naiveProbabilities.pickle", "wb") as f:
             pickle.dump(naiveProbabilities, f)
-        with open(modelFolder + modelName + "_modeldata" + modelExtension + "_incomingProbabilities.pickle", "wb") as f:
-            pickle.dump(incomingProbabilities, f)
 
-    return naiveProbabilities, incomingProbabilities
+    return naiveProbabilities

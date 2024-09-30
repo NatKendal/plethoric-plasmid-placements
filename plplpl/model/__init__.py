@@ -1,19 +1,25 @@
+from .evaluate import evaluateModel
 from .evidence import get_evidence
+from .merge import mergeQueries
 from .model_builder import setupGraph
 from .model_builder import addDelayFunctionToModel
 from .model_builder import addConjugationFunctionToModel
-from .queries import build_queries
-from .normalize import normalizeModel
-from .naive_probabilities import calculateNaiveProbabilities
-from .evaluate import evaluateModel
+from .naive_probabilities import computeNaiveProbabilities
+from .normalize import normalizeConjugation
+from .normalize import normalizeMaturation
+from .queries import find_queries
+from .utilities import copyModelData
 
 __all__ = [
+    "evaluateModel",
     "get_evidence",
+    "mergeQueries",
     "setupGraph",
     "addDelayFunctionToModel",
     "addConjugationFunctionToModel",
-    "build_queries",
-    "normalizeModel",
-    "calculateNaiveProbabilities",
-    "evaluateModel"
+    "computeNaiveProbabilities",
+    "normalizeConjugation",
+    "normalizeMaturation",
+    "find_queries",
+    "copyModelData",
 ]

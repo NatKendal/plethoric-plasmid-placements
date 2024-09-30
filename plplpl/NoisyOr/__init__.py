@@ -1,9 +1,9 @@
 from .NoisyOrFactor import NoisyOrFactor
-from .BinaryNoisyOrCPD import BinaryNoisyOrCPD
-from .NoisyOrBayesianNetwork import NoisyOrBayesianNetwork
+from .NoisyOrCPD import NoisyOrCPD
+from .BayesianNetwork import BayesianNetwork
 
 __all__ = [
     "NoisyOrFactor",
-    "BinaryNoisyOrCPD",
-    "NoisyOrBayesianNetwork"
+    "NoisyOrCPD",
+    "BayesianNetwork"
 ]

@@ -1,9 +1,5 @@
-from .colourDelayFunctionUniform import ColourDelayFunctionUniform
-from .colourDelayFunctionNormal import ColourDelayFunctionNormal
-from .colourDelayFunctionNormalSkewed import ColourDelayFunctionNormalSkewed
+from .colourDelayFunctionUniformV2 import ColourDelayFunctionUniformV2
 
 __all__ = [
-    "ColourDelayFunctionUniform",
-    "ColourDelayFunctionNormal",
-    "ColourDelayFunctionNormalSkewed"
+    "ColourDelayFunctionUniformV2"
 ]

@@ -2,9 +2,6 @@ from collections import ChainMap
 import itertools
 from weakref import WeakValueDictionary
 
-#from pgmpy.factors.discrete import DiscreteFactor
-from plplpl.NoisyOr import BinaryNoisyOrCPD
-
 class NoisyOrFactor(object):
     """
     Low overhead factor wrapper
@@ -45,7 +42,6 @@ class NoisyOrFactor(object):
         self.references = []
         self.savedValues = dict()
         self.argument = argument.copy()
-        self.factorPointers = dict()
         self.references = []
 
         for reference in references:
@@ -85,6 +81,10 @@ class NoisyOrFactor(object):
             if len(self.argument) == 0:
                 raise ValueError("Can't marginalize nothing.")
             self.variables = sorted(list(set(self.references[0].variables).difference(set([x[0] for x in self.argument]))))
+        elif operation == "quotient":
+            if len(references) != 2:
+                raise ValueError("Need two references to calculate a quotient.")
+            self.variables = sorted(list(set(self.references[0].variables).union(set(self.references[1].variables))))
         else:
             raise ValueError("Expected operation from [constant, product, marginalize, reduce, marginalizeGivenProbability]")
 
@@ -171,3 +171,13 @@ class NoisyOrFactor(object):
                 return total
             else:
                 return self.get_value(**kwargs)
+        elif self.operation == "quotient":
+            nominator = self.references[0].get_value(**kwargs)
+            denominator = self.references[1].get_value(**kwargs)
+            if denominator == 0:
+                #print("Quotient factor had zero in denominator. Was something impossible? Returning 1.")
+                self.savedValues[assignment] = 1
+                return 1
+            result = nominator/denominator
+            self.savedValues[assignment] = result
+            return result

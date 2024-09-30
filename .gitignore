@@ -15,3 +15,9 @@ temp.py
 tools/*.txt
 Experiment3*
 Experiment4*
+v2_notes.txt
+old/*
+plplpl/v1*
+plplpl/model/v1evaluate.py
+plplpl/model/v1naive_probabilities.py
+plplpl/model/v1queries.py

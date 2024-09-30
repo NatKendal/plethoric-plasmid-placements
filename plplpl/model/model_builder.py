@@ -5,8 +5,8 @@ from plplpl.conjugation_functions import *
 from plplpl.colour_delay_functions import *
 from plplpl.maturation_delay_functions import *
 
-from plplpl.NoisyOr import NoisyOrBayesianNetwork
-from plplpl.NoisyOr import BinaryNoisyOrCPD
+from plplpl.NoisyOr import BayesianNetwork
+from plplpl.NoisyOr import NoisyOrCPD
 
 
 """
@@ -15,21 +15,21 @@ Returns a NoisyOrBayesianNetwork
 modelFolder: path to directory
 dataFolder: path to directory
 modelName: unique name for this model/computation
-colour_min: minimum number of timesteps for colour to appear
-colour_max: maximum number of timesteps for colour to appear
 maturation_min: minimum number of timesteps for maturation 
 maturation_max: maximum number of timesteps for maturation
 save: if we should save the model to a file (pickle)
 debug: 0 = nothing, 1 = status, 2 = verbose
 progressBar: if we should show a progress bar on long for loops
+doCheck: if we should do a graph check to ensure everything works and is acyclic
 """
-def setupGraph(modelFolder, dataFolder, modelName, colour_min, colour_max, maturation_min, maturation_max, save=True, debug=0, progressBar=False):
+def setupGraph(modelFolder, dataFolder, modelName, maturation_min, maturation_max, save=True, debug=0, progressBar=False, doCheck=True):
+    # Assert correctness of constants.
+    assert maturation_min >= 1
+    assert maturation_max >= maturation_min
+
     # Load progress bar if requested.
     if progressBar:
         import tqdm
-
-    # Initialize a NoisyOrBayesianNetwork.
-    model = NoisyOrBayesianNetwork()
 
     # Get list of human friendly names to use as variable names.
     with open(dataFolder + modelName + "_humanFriendlyName.pickle", "rb") as f:
@@ -39,70 +39,57 @@ def setupGraph(modelFolder, dataFolder, modelName, colour_min, colour_max, matur
     cells = list(name.keys())
     
     if debug >= 1:
-        print("Starting to add nodes to graph.")
+        print("Computing the vertices.")
     
-    if progressBar:
-        iterable = tqdm.tqdm(cells)
-    else:
-        iterable = cells
-    # Add the nodes to the graph.
-    for cell in iterable:
-        if debug >= 2:
-            print("Adding node " + name[cell])
-        if progressBar:
-            iterable.set_description(desc="Adding node " + str(cell))
-        # Add three nodes per cell per timestep.
+    # Calculate the set of vertices.
+    vertices = set()
+    for cell in cells:
+        # Add two nodes per cell per timestep.
         # g[cellId]_[step] is 1 if cellId has the gene at timestep step, else 0.
-        # c[cellId]_[step] is 1 if cellId is coloured (not green) at timestep step, else 0.
         # m[cellId]_[step] is 1 if cellId is matured (can conjugate) at timestep step, else 0.
-        model.add_nodes_from(["g"+name[cell], "c"+name[cell], "m"+name[cell]])
+        vertices.add("g"+name[cell])
+        vertices.add("m"+name[cell])
+        # vertices.add("c"+name[cell])
+        # We previously included colour, but we have simplified the model in v2 and now use colour implicitly.
 
-    # Add edges to the graph.
-    # First: get the children of a cell, either true children or itself at the next timestep.
-    # We have to add edges one timestep forward for the three properties, gene, colour, and maturation.
+    if debug >= 1:
+        print("Computing the edges.")
+
+    # Calculate the list of edges.
+    edges = list()
+
+    # We have to add edges one timestep forward for gene and maturation.
     with open(dataFolder + modelName + "_forwardLinks.pickle", "rb") as f:
         forwardLinks = pickle.load(f)
-    # Second: get the neighbours of a cell.
-    # We have to add edges one timestep forward for each possible mate.
+
+    # We also add edges from the maturation node of a cell to the gene node of its neighbours every timestep.
     with open(dataFolder + modelName + "_neighbours.pickle", "rb") as f:
         neighbours = pickle.load(f)
 
-    if debug >= 1:
-        print("Finished adding nodes to graph, starting to add edges.")
-
     if progressBar:
         iterable = tqdm.tqdm(cells)
     else:
         iterable = cells
-    # Add the edges, one cell at a time.
+    # Get the outgoing edges for each cell.
     for cell in iterable:
         if progressBar:
-            iterable.set_description(desc="Adding edges to " + str(cell))
-        # First: add the simple downward edges. (g -> g, c -> c, m -> m)
+            iterable.set_description(desc="Adding edges for " + str(name[cell]))
+        # First: add the simple downward edges. (g -> g, m -> m)
         for child in forwardLinks[cell]:
-            model.add_edge("g"+name[cell], "g"+name[child])
-            model.add_edge("c"+name[cell], "c"+name[child])
-            model.add_edge("m"+name[cell], "m"+name[child])
+            edges.append(("g"+name[cell], "g"+name[child]))
+            edges.append(("m"+name[cell], "m"+name[child]))
         # Second: add inter-cell edges to neighbours. (m -> g)
         for neighbour in neighbours[cell]:
-            for futureCell in forwardLinks[neighbour]:
-                model.add_edge("m"+name[cell], "g"+name[futureCell])
-        # Third: add the intra-cell edges to children. (g -> c, g -> m)
+            edges.append(("m"+name[cell], "g"+name[neighbour]))
+        # Third: add the intra-cell edges to children. (g -> m)
         children = forwardLinks[cell].copy()
         depth = 1
-        while depth <= max(colour_max, maturation_max):
-            # If we're in the correct range for colour, add edges.
-            if depth >= colour_min and depth <= colour_max:
-                for child in children:
-                    model.add_edge("g"+name[cell], "c"+name[child])
-            # If we're in the correct range for maturation, add edges.
-            if depth >= maturation_min and depth <= maturation_max:
-                for child in children:
-                    model.add_edge("g"+name[cell], "m"+name[child])
-            # In any case, get all of the children's children and repeat until we hit the required depth.
+        while depth <= maturation_max:
             newChildren = []
-            for child in children:
+            for child in children: # Effectively do a BFS, and track how deep we've gone.
                 newChildren.extend(forwardLinks[child])
+                if depth >= maturation_min and depth <= maturation_max: # If we're in the range, add an edge.
+                    edges.append(("g"+name[cell], "m"+name[child]))
             children = newChildren
             depth += 1
 
@@ -110,13 +97,19 @@ def setupGraph(modelFolder, dataFolder, modelName, colour_min, colour_max, matur
             print("Cell " + name[cell] + " complete.")
 
     if debug >= 1:
-        print("Finished adding edges to graph.")
+        print("Instantiating BayesianNetwork.")
+
+    model = BayesianNetwork(vertices=vertices, edges=edges)
 
     # Save additional graph properties.
-    model.constants["colour_min"] = colour_min
-    model.constants["colour_max"] = colour_max
     model.constants["maturation_min"] = maturation_min
     model.constants["maturation_max"] = maturation_max
+
+    if debug >= 1:
+        print("Doing a structure check.")
+
+    if doCheck:
+        assert model.checkStructure(progressBar=progressBar)
 
     if save:
         if debug >= 1:
@@ -138,10 +131,9 @@ delayFunctionPickleFile: pickle file with the BaseDelayFunction() instance to us
 save: if we should save the model to a file (pickle)
 debug: 0 = nothing, 1 = status, 2 = verbose
 progressBar: if we should show a progress bar on long for loops
-safeMode: if we should use the BayesianNetwork.add_cpds. It's slower but does checks.
 loadedModel: if we should use a model already in memory instead of loading one.
 """
-def addDelayFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, delayFunctionPickleFile, save=True, debug=0, progressBar=False, safeMode=False, loadedModel=None):
+def addDelayFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, delayFunctionPickleFile, save=True, debug=0, progressBar=False, loadedModel=None):
     if progressBar:
         import tqdm
 
@@ -177,17 +169,14 @@ def addDelayFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, 
         timestep = int(node.split("_")[1])
         evidence = []
         evidence_noise = []
-        for predecessor in model.predecessors(node):
-            evidence.append(predecessor)
-            if predecessor[0] == "g":
-                evidence_noise.append(delayFunction.weight(timestep - int(predecessor.split("_")[1])))
+        for parent in model.parents(node):
+            evidence.append(parent)
+            if parent[0] not in delayFunction.nodePrefix:
+                evidence_noise.append(delayFunction.weight(timestep - int(parent.split("_")[1])))
             else:
                 evidence_noise.append(1.0)
 
-        if safeMode: # This is slow, but does enhanced checks.
-            model.add_cpds(BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise))
-        else: # Faster, but directly editing the model.
-            model.cpds_dict[node] = BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise)
+        model.add_cpd(node, NoisyOrCPD(node, baseChance=0, evidence=evidence, evidence_noise=evidence_noise))
 
     if debug >= 1:
         print("Finished adding CPDs.")
@@ -213,11 +202,10 @@ conjugationFunctionPickleFile: pickle file with the BaseDelayFunction() instance
 save: if we should save the model to a file (pickle)
 debug: 0 = nothing, 1 = status, 2 = verbose
 progressBar: if we should show a progress bar on long for loops
-safeMode: if we should use the BayesianNetwork.add_cpds. It's slower but does checks.
 loadedModel: if we should use a model already in memory instead of loading one.
 saveConjugationFunction: if we should save the conjugation function with loaded data for use later.
 """
-def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, conjugationFunctionPickleFile, save=True, debug=0, progressBar=False, safeMode=False, loadedModel=None, saveConjugationFunction=True):
+def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExtension, conjugationFunctionPickleFile, save=True, debug=0, progressBar=False, loadedModel=None, saveConjugationFunction=True):
     if progressBar:
         import tqdm
 
@@ -264,22 +252,20 @@ def addConjugationFunctionToModel(modelFolder, dataFolder, modelName, modelExten
 
         evidence = []
         evidence_noise = []
-        for predecessor in list(model.predecessors(node)):
-            if predecessor[0] == "m":
-                weight = conjugationFunction.weight(uid[predecessor[1:]], backwardLinks[uid[node[1:]]], debug=debug)
+        for parent in list(model.parents(node)):
+            if parent[0] == "m":
+                weight = conjugationFunction.weight(uid[parent[1:]], uid[node[1:]], debug=debug)
                 if weight != 0:
-                    evidence.append(predecessor)
+                    evidence.append(parent)
                     evidence_noise.append(weight)
                 else:
-                    model.remove_edge(predecessor, node)
+                    model.remove_edge((parent, node))
             else:
-                evidence.append(predecessor)
+                evidence.append(parent)
                 evidence_noise.append(1.0)
 
-        if safeMode: # This is slow, but does enhanced checks.
-            model.add_cpds(BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise))
-        else: # Faster, but directly editing the model.
-            model.cpds_dict[node] = BinaryNoisyOrCPD(node, 0, evidence=evidence, evidence_noise=evidence_noise)
+        model.add_cpd(node, NoisyOrCPD(node, baseChance=0, evidence=evidence, evidence_noise=evidence_noise))
+
 
     if debug >= 1:
         print("Finished adding CPDs.")
