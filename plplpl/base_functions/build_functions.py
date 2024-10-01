@@ -16,7 +16,11 @@ def buildFunctions(location, force=False):
         MaturationDelayFunctionUniform(),
         ContactWeightsArea(),
         ContactWeightsBoundary(),
-        MaturationDelayFunctionNormalSkewed()
+        MaturationDelayFunctionNormalSkewed(),
+        MaturationUniformV2L15U75(),
+        MaturationUniformV2L30U90(),
+        ColourUniformV2L30U120(),
+        ColourUniformV2L30U150()
     ]
 
     for function in functionList:

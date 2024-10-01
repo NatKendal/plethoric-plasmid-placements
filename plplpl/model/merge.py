@@ -35,13 +35,16 @@ def mergeQueries(modelFolder, modelName, modelExtension, modelExtensionExtra, co
             print("Working on query " + str(query))
         probability = 0.0
         queryTime = int(query.split("_")[1])
+        failed = 0
         for point in queries[query]["critical"]:
             if queryPointValues[point] == -1:
-                probability = -1
-                break
+                failed += 1
             else:
                 probability += queryPointValues[point] * colourFunction.value(abs(queryTime - int(point.split("_")[1])))
-        queryEvaluation[query] = probability
+        if failed == 0:
+            queryEvaluation[query] = probability
+        else:
+            queryEvaluation[query] = (failed, probability)
 
     if debug >= 1:
         print("Finished processing all queries.")

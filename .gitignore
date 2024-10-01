@@ -21,3 +21,5 @@ plplpl/v1*
 plplpl/model/v1evaluate.py
 plplpl/model/v1naive_probabilities.py
 plplpl/model/v1queries.py
+plplpl/model/evaluatetimingchange.py.bak
+preprint.py

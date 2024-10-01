@@ -71,3 +71,14 @@ class MaturationDelayFunctionUniform(BaseDelayFunction):
         edge_vals = calcMaturationWeights(cdf_vals)
         super().__init__("maturationDelayFunctionUniform", 2, ["m"], {"maturation_min":(min_val), "maturation_max":(max_val)}, min_val, max_val, edge_vals)
 
+class MaturationUniformV2L15U75(BaseDelayFunction):
+    def __init__(self):
+        cdf_vals, min_val, max_val = calcCdfValues(min_val=15, max_val=75, step_length=5)
+        edge_vals = calcMaturationWeights(cdf_vals)
+        super().__init__("maturationUniformV2L15U75", 2, ["m"], {"maturation_min":(min_val), "maturation_max":(max_val)}, min_val, max_val, edge_vals)
+
+class MaturationUniformV2L30U90(BaseDelayFunction):
+    def __init__(self):
+        cdf_vals, min_val, max_val = calcCdfValues(min_val=30, max_val=90, step_length=5)
+        edge_vals = calcMaturationWeights(cdf_vals)
+        super().__init__("maturationUniformV2L30U75", 2, ["m"], {"maturation_min":(min_val), "maturation_max":(max_val)}, min_val, max_val, edge_vals)
