@@ -1,5 +1,6 @@
 from collections import deque
 
+import math
 import pickle
 
 def naiveCalcNode(model, directParents, naiveProbabilities, treatAsZero, node, previousProbability):
@@ -17,6 +18,8 @@ def naiveCalcNode(model, directParents, naiveProbabilities, treatAsZero, node, p
                 kwargs[parent] = 0
                 missing.add(parent)
     kwargs[node] = 1
+    if model.cpd(node).get_value(**kwargs) in [math.nan, math.inf, -math.inf] or (model.cpd(node).get_value(**kwargs) > 1):
+        raise Exception("Naive calculation of a node returned a bad value.")
     return model.cpd(node).get_value(**kwargs), missing
 
 # Calculate chance of getting plasmid at each point, including probability of correct lightups.
@@ -122,8 +125,14 @@ def calcSegmentFromRoot(model, directParents, directChildren, evidence, queries,
             childrenSatisfactionChance, newMissing = recursiveCalcSegmentHelper(model, directParents, queries, criticalSegments, colourFunction, naiveProbabilities, relevantLightups, live, treatAsZero, allSegmentProbabilities, 0.0, segment, False)
             missing = missing.union(newMissing)
             constantModifier = newNaiveProbabilities[segment[-1]] + ((1-newNaiveProbabilities[segment[-1]]) * childrenSatisfactionChance)
-            for node in segment:
-                newNaiveProbabilities[node] = newNaiveProbabilities[node]/constantModifier
+            if constantModifier > 0:
+                for node in segment:
+                    newNaiveProbabilities[node] = newNaiveProbabilities[node]/constantModifier
+            else:
+                pass
+                # NOTE: This shouldn't occur, but sometimes happens when the model cannot discern why something was forced.
+                # Can result from tracking errors or other data set problems.
+                # When it occurs, we ignore it and keep forced evidence forced and move on.
             if segment in criticalSegments["children"]:
                 for child in criticalSegments["children"][segment]:
                     if child in evidence:
@@ -171,8 +180,7 @@ def recursivelySolve(model, directParents, directChildren, evidence, queries, cr
             elif directParents[maturation] in naiveProbabilities:
                 parentVal = naiveProbabilities[directParents[maturation]]
             else:
-                print("SOMETHING WENT WRONG!")
-                breakpoint()
+                raise Exception("Something went wrong when recursively solving " + str(rootSegment) + ".")
         newNaiveProbabilities[maturation], _ = naiveCalcNode(model, directParents, newNaiveProbabilities, treatAsZero, maturation, parentVal)
     return newNaiveProbabilities
 
@@ -281,6 +289,8 @@ def computeNaiveProbabilities(modelFolder, dataFolder, modelName, modelExtension
         if debug >= 2:
             print("Working on critical segment starting at " + str(rootSegment[0]))
         naiveProbabilities.update(recursivelySolve(model, directParents, directChildren, evidence, queries, criticalSegments, colourFunction, segmentGroupMaturationNodes, naiveProbabilities, set(), rootSegment, 0, depth))
+        #if len([x for x in naiveProbabilities.keys() if naiveProbabilities[x] in [math.inf, -math.inf, math.nan]]) > 0:
+        #    raise Exception("Naive calculation of a node returned a bad value.")
 
     if debug >= 1:
         print("Finished calculating naive probabilities.")

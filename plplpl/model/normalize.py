@@ -77,9 +77,9 @@ def normalizeConjugation(modelFolder, dataFolder, modelName, modelExtension, mod
     totalWeight = 0.0
 
     if progressBar:
-        iterator = tqdm.tqdm(model)
+        iterator = tqdm.tqdm(model.vertices())
     else:
-        iterator = model
+        iterator = model.vertices()
     for vertex in iterator:
         if debug >= 2:
             print("Working on " + str(vertex))
@@ -98,9 +98,9 @@ def normalizeConjugation(modelFolder, dataFolder, modelName, modelExtension, mod
         print("Normalizing all transconjugant edges.")
 
     if progressBar:
-        iterator = tqdm.tqdm(model)
+        iterator = tqdm.tqdm(model.vertices())
     else:
-        iterator = model
+        iterator = model.vertices()
     for vertex in iterator:
         if debug >= 2:
             print("Working on " + str(vertex))
@@ -108,8 +108,8 @@ def normalizeConjugation(modelFolder, dataFolder, modelName, modelExtension, mod
             iterator.set_description(desc="Working on " + str(vertex))
         if vertex[0] == "g":
             for i in range(len(model.cpd(vertex)._evidence)):
-                if (model.cpd(vertex)._evidence[i], vertex) in edgeList:
-                    model.cpd(vertex).update_evidence_noise(i, normalizationFactor * model.cpd(vertex)._evidence_noise[i])
+                #if (model.cpd(vertex)._evidence[i], vertex) in edgeList:
+                model.cpd(vertex).update_evidence_noise(i, normalizationFactor * model.cpd(vertex)._evidence_noise[i])
 
     if debug >= 1:
         print("Finished normalizing.")
@@ -234,8 +234,8 @@ def normalizeMaturation(modelFolder, dataFolder, modelName, modelExtension, mode
             iterator.set_description(desc="Working on " + str(vertex))
         if vertex[0] == "g":
             for i in range(len(model.cpd(vertex)._evidence)):
-                if (model.cpd(vertex)._evidence[i], vertex) in edgeList:
-                    model.cpd(vertex).update_evidence_noise(i, normalizationFactor * model.cpd(vertex)._evidence_noise[i])
+                #if (model.cpd(vertex)._evidence[i], vertex) in edgeList:
+                model.cpd(vertex).update_evidence_noise(i, normalizationFactor * model.cpd(vertex)._evidence_noise[i])
 
     if debug >= 1:
         print("Finished normalizing.")

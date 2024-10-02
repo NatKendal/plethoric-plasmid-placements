@@ -114,7 +114,7 @@ def setupGraph(modelFolder, dataFolder, modelName, maturation_min, maturation_ma
     if save:
         if debug >= 1:
             print("Saving model.")
-        with open(modelFolder + modelName + "_model_None_None_None.pickle", "wb") as f:
+        with open(modelFolder + modelName + "_model_None_None_"+str(maturation_min)+"-"+str(maturation_max)+".pickle", "wb") as f:
             pickle.dump(model, f)
 
     return model

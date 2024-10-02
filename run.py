@@ -41,7 +41,10 @@ def multiRun(rawFile, modelFolder, modelName, functionFolder, conjugationList, m
 # If force=False, then we don't recalculate any model or model data that already exists.
 def fullRun(rawFile, modelFolder, dataFolder, modelName, functionFolder, conjugationFunctionName, maturationFunctionName, maturation_min, maturation_max, colourFunctionName, colour_min, colour_max, force=True, naiveDepth=2, evaluateTimeout=10, debug=0, progressBar=False, rebuildFunctions=False):
 
-    modelExtension = "_None_None_None"
+    if debug >= 1:
+        print("Starting full run on " + modelName + " using functions " + conjugationFunctionName + ", " + colourFunctionName + ", and " + maturationFunctionName)
+
+    modelExtension = "_None_None_"+str(maturation_min)+"-"+str(maturation_max)
     modelExtensionExtra = ""
 
     model = None # Saved model to reduce saving and loading.
@@ -49,8 +52,10 @@ def fullRun(rawFile, modelFolder, dataFolder, modelName, functionFolder, conjuga
     if rebuildFunctions:
         buildFunctions(functionFolder, force=force)
 
-    if force or (not os.path.exists(modelFolder+modelName+"_model"+modelExtension+".pickle")):
+    if force or (not os.path.exists(dataFolder+modelName+"_raw.pickle")):
         saveAll(rawFile, dataFolder, modelName)
+
+    if force or (not os.path.exists(modelFolder+modelName+"_model"+modelExtension+".pickle")):
         model = setupGraph(modelFolder, dataFolder, modelName, maturation_min, maturation_max, save=True, debug=debug, progressBar=progressBar, doCheck=False)
     else:
         model = None
@@ -98,7 +103,7 @@ def fullRun(rawFile, modelFolder, dataFolder, modelName, functionFolder, conjuga
         model = normalizeConjugation(modelFolder, dataFolder, modelName, modelExtension, "_contradictionsPruned", normalizeTo=1.0, save=True, debug=debug, progressBar=progressBar, loadedModel=model, edgeList=None)
         if debug >= 1:
             print("Checking CPDs.")
-        check = model.checkCPDs(progressBar=progressBar)
+        check = model.checkCPDWeights(progressBar=progressBar)
         assert check
         if debug >= 1:
             print("Passed? " + str(check))
@@ -120,7 +125,7 @@ def fullRun(rawFile, modelFolder, dataFolder, modelName, functionFolder, conjuga
         model = normalizeMaturation(modelFolder, dataFolder, modelName, preColourModelExtension, "_conjugationNormalized", modelExtension, normalizeTo=1.0, save=True, debug=debug, progressBar=progressBar, loadedModel=model, edgeList=None)
         if debug >= 1:
             print("Checking CPDs.")
-        check = model.checkCPDs(progressBar=progressBar)
+        check = model.checkCPDWeights(progressBar=progressBar)
         assert check
         if debug >= 1:
             print("Passed? " + str(check))
@@ -161,4 +166,4 @@ if __name__ == "__main__":
         fullRun(rawFile, modelFolder, dataFolder, modelName, functionFolder, conjugationFunctionName, maturationFunctionName, maturation_min, maturation_max, colourFunctionName, colour_min, colour_max, timeout=timeout, debug=debug, progressBar=progressBar, rebuildFunctions=rebuildFunctions)
     if True:
         #multiRun(rawFile, metaFolder, baseModelName, functionFolder, conjugationList, maturationList, colourList, timeout=10, debug=0, progressBar=False, rebuildFunctions=False)
-        multiRun("data/trap16bulk/trap16raw.csv", "data/trap16bulk/", "trap16bulk", "functions/", ["contactWeightsBoundary", "contactWeightsBaseline"], [("maturationUniformV2L15U75", 3, 15), ("maturationUniformV2L15U90", 3, 18)], [("colourUniformV2L30U120", 6, 24), ("colourUniformV2L30U150", 6, 30)], force=False, naiveDepth=2, evaluateTimeout=10, debug=1, progressBar=True, rebuildFunctions=True)
+        multiRun("data/trap16bulk/trap16raw.csv", "data/trap16bulk/", "trap16bulk", "functions/", ["contactWeightsBoundary", "contactWeightsBaseline"], [("maturationUniformV2L15U75", 3, 15), ("maturationUniformV2L30U90", 6, 18)], [("colourUniformV2L30U120", 6, 24), ("colourUniformV2L30U150", 6, 30)], force=False, naiveDepth=2, evaluateTimeout=10, debug=1, progressBar=True, rebuildFunctions=True)

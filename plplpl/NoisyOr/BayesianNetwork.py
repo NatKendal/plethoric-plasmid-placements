@@ -1,3 +1,5 @@
+import math
+
 from collections import defaultdict
 
 """
@@ -248,4 +250,20 @@ class BayesianNetwork(object):
             # Check that the CPD implements get_value.
             if not (hasattr(self._cpds[vertex], "get_value") and callable(self._cpds[vertex].get_value)):
                 return False
+        return True
+    
+    def checkCPDWeights(self, progressBar=False):
+        if progressBar:
+            import tqdm
+        if progressBar:
+            iterator = tqdm.tqdm(self._vertices)
+        else:
+            iterator = self._vertices
+        for vertex in iterator:
+            if progressBar:
+                iterator.set_description("Checking " + str(vertex))
+            # Check if the weights are appropriate.
+            for weight in self._cpds[vertex]._evidence_noise:
+                if (weight < 0) or (weight > 1) or (weight in [math.inf, -math.inf, math.nan]):
+                    return False
         return True

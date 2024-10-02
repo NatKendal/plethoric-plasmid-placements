@@ -109,7 +109,7 @@ class NoisyOrCPD(object):
     # WARNING: If this is changed, other objects that have precomputed a result involving this may not be updated.
     def update_evidence_noise(self, i, evidence_noise):
         # Update the evidence noise.
-        self._evidence_noise[i] == evidence_noise
+        self._evidence_noise[i] = evidence_noise
         # Clear out saved values that may be invalid now.
         newSavedValues = dict()
         for assignment in self._savedValues.keys():
