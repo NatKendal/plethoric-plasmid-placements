@@ -144,6 +144,48 @@ def fullRun(rawFile, modelFolder, dataFolder, modelName, functionFolder, conjuga
     if force or (not os.path.exists(modelFolder+modelName+"_modeldata"+modelExtension+"_maturationNormalized_queryEvaluation.pickle")):
         queryEvaluation = mergeQueries(modelFolder, modelName, modelExtension, "_maturationNormalized", functionFolder+colourFunctionName+".pickle", save=True, debug=debug, progressBar=progressBar)
 
+def resultsToCSV(resultsFolder, outputFile):
+    results = []
+    resultNames = []
+    for filename in os.listdir(resultsFolder):
+        if filename[-7:] != ".pickle":
+            continue
+        print("Loading " + str(filename))
+        names = filename.split("_")
+        resultNames.append("_".join(names[2:5]))
+        with open(os.path.join(resultsFolder, filename), "rb") as f:
+            results.append(pickle.load(f))
+    keys = results[0].keys()
+    for result in results:
+        if result.keys() != keys:
+            print("Key mismatch, stopping result merge.")
+            return
+    safeKeys = set()
+    zeroKeys = set()
+    for key in keys:
+        safe = True
+        allZero = True
+        for result in results:
+            if isinstance(result[key], tuple):
+                safe = False
+                break
+            elif result[key] != 0:
+                allZero = False
+        if safe:
+            if allZero:
+                zeroKeys.add(key)
+            else:
+                safeKeys.add(key)
+    safeKeys = sorted(safeKeys, key=lambda x: (int(x.split("_")[1]), int(x[1:].split("_")[0])))
+    with open(outputFile, "w") as f:
+        f.write(",".join(["Query"]+resultNames)+"\n")
+        for key in safeKeys:
+            f.write(",".join([key] + [str(results[i][key]) for i in range(len(results))]) + "\n")
+
+    print("Usable queries: " + str(len(safeKeys)))
+    print("Zero queries: " + str(len(zeroKeys)))
+    print("All queries: " + str(len(keys)))
+
 if __name__ == "__main__":
     if False:
         #def fullRun(rawFile, modelFolder, dataFolder, modelName, functionFolder, conjugationFunctionName, maturationFunctionName, maturation_min, maturation_max, colourFunctionName, colour_min, colour_max, timeout=10, debug=0, progressBar=False, rebuildFunctions=False)
@@ -166,4 +208,5 @@ if __name__ == "__main__":
         fullRun(rawFile, modelFolder, dataFolder, modelName, functionFolder, conjugationFunctionName, maturationFunctionName, maturation_min, maturation_max, colourFunctionName, colour_min, colour_max, timeout=timeout, debug=debug, progressBar=progressBar, rebuildFunctions=rebuildFunctions)
     if True:
         #multiRun(rawFile, metaFolder, baseModelName, functionFolder, conjugationList, maturationList, colourList, timeout=10, debug=0, progressBar=False, rebuildFunctions=False)
-        multiRun("data/trap16bulk/trap16raw.csv", "data/trap16bulk/", "trap16bulk", "functions/", ["contactWeightsBoundary", "contactWeightsBaseline"], [("maturationUniformV2L15U75", 3, 15), ("maturationUniformV2L30U90", 6, 18)], [("colourUniformV2L30U120", 6, 24), ("colourUniformV2L30U150", 6, 30)], force=False, naiveDepth=2, evaluateTimeout=10, debug=1, progressBar=True, rebuildFunctions=True)
+        #multiRun("data/trap16bulk/trap16raw.csv", "data/trap16bulk/", "trap16bulk", "functions/", ["contactWeightsBoundary", "contactWeightsBaseline"], [("maturationUniformV2L15U75", 3, 15), ("maturationUniformV2L30U90", 6, 18)], [("colourUniformV2L30U120", 6, 24), ("colourUniformV2L30U150", 6, 30)], force=False, naiveDepth=2, evaluateTimeout=10, debug=1, progressBar=True, rebuildFunctions=True)
+        multiRun("data/trap9bulk/trap9raw.csv", "data/trap9bulk/", "trap9bulk", "functions/", ["contactWeightsBoundary", "contactWeightsBaseline"], [("maturationUniformV2L15U75", 3, 15), ("maturationUniformV2L30U90", 6, 18)], [("colourUniformV2L30U120", 6, 24), ("colourUniformV2L30U150", 6, 30)], force=False, naiveDepth=2, evaluateTimeout=10, debug=1, progressBar=True, rebuildFunctions=True)
